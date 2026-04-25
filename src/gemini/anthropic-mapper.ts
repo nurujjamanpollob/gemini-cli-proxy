@@ -32,8 +32,8 @@ export const mapAnthropicMessagesRequestToGemini = (
         }
     }
 
-    // Special handling for gemini-3-pro-preview
-    if (model === "gemini-3-pro-preview") {
+    // Special handling for Gemini 3 Pro variants
+    if (model === "gemini-3-pro-preview" || model === "gemini-3.1-pro-preview" || model === "gemini-3.0-pro" || model === "gemini-3.1-pro") {
         geminiRequest.generationConfig = {
             ...geminiRequest.generationConfig,
             thinkingConfig: {

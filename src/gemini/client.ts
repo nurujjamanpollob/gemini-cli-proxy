@@ -293,10 +293,9 @@ export class GeminiApiClient {
             const version = "0.25.0";
             const userAgent = `GeminiCLI/${version}/${payload.model} (${process.platform}; ${process.arch})`;
 
-            const url = `${CODE_ASSIST_ENDPOINT}/${CODE_ASSIST_API_VERSION}:streamGenerateContent`;
+            let url = `${CODE_ASSIST_ENDPOINT}/${CODE_ASSIST_API_VERSION}:streamGenerateContent`;
             const installationId = "68260397-5066-4f72-b0d2-9f92585ddd1c";
             const quotaProjectId = payload.project || this.googleCloudProject || "nifty-iridium-3vpmb";
-
 
             this.logger.info(`Making request to: ${url}`);
 
@@ -306,7 +305,7 @@ export class GeminiApiClient {
                 "x-gemini-api-privileged-user-id": installationId,
             };
 
-            const res = await this.authClient.request({
+            let res = await this.authClient.request({
                 url,
                 method: "POST",
                 params: {
@@ -315,7 +314,7 @@ export class GeminiApiClient {
                 headers,
                 responseType: "stream",
                 body: JSON.stringify(payload),
-                validateStatus: (status) => (status >= 200 && status < 300) || status === 400,
+                validateStatus: (status) => (status >= 200 && status < 300) || status === 400 || status === 404, // Also accept 404 to handle fallback
                 retryConfig: {
                     retry: 3,
                     retryDelay: 1000,
@@ -325,6 +324,49 @@ export class GeminiApiClient {
                     }
                 }
             });
+
+            // Fallback for 404 if multiple endpoints are defined
+            if (res.status === 404) {
+                this.logger.warn(`Received 404 from ${url}. Attempting fallbacks...`);
+                let success = false;
+                for (let i = 1; i < CODE_ASSIST_ENDPOINT_FALLBACKS.length; i++) {
+                    const fallbackEndpoint = CODE_ASSIST_ENDPOINT_FALLBACKS[i];
+                    url = `${fallbackEndpoint}/${CODE_ASSIST_API_VERSION}:streamGenerateContent`;
+                    this.logger.info(`Trying fallback endpoint: ${url}`);
+                    
+                    res = await this.authClient.request({
+                        url,
+                        method: "POST",
+                        params: {
+                            alt: "sse",
+                        },
+                        headers,
+                        responseType: "stream",
+                        body: JSON.stringify(payload),
+                        validateStatus: (status) => (status >= 200 && status < 300) || status === 400 || status === 404,
+                        retryConfig: {
+                            retry: 3,
+                            retryDelay: 1000,
+                            statusCodesToRetry: [[429, 429], [500, 599]],
+                        }
+                    });
+
+                    if (res.status !== 404) {
+                        success = true;
+                        break;
+                    }
+                }
+                
+                if (!success && res.status === 404) {
+                    const stream = res.data as NodeJS.ReadableStream;
+                    let errorBody = "";
+                    for await (const chunk of stream) {
+                        errorBody += chunk.toString();
+                    }
+                    this.logger.error(`API ERROR 404 BODY: ${errorBody}`);
+                    throw new GeminiApiError(`API call failed with status 404: Model or endpoint not found`, 404, errorBody);
+                }
+            }
 
             if (res.status === 400) {
                 const stream = res.data as NodeJS.ReadableStream;

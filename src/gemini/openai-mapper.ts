@@ -22,8 +22,8 @@ export const mapOpenAIChatCompletionRequestToGemini = (
         geminiRequest.systemInstruction = mapSystemInstruction(messages);
     }
 
-    // Special handling for gemini-3-pro-preview
-    if (model === "gemini-3-pro-preview") {
+    // Special handling for Gemini 3 Pro variants
+    if (model === "gemini-3-pro-preview" || model === "gemini-3.1-pro-preview" || model === "gemini-3.0-pro" || model === "gemini-3.1-pro") {
         geminiRequest.generationConfig = {
             ...geminiRequest.generationConfig,
             thinkingConfig: {
@@ -101,27 +101,10 @@ const mapToolChoiceToToolConfig = (toolChoice?: OpenAI.ToolChoice): Gemini.ToolC
 
 const isSystemMessage = (message: OpenAI.ChatMessage): boolean => message.role === "system" || message.role === "developer";
 
-const mapOpenAIMessageToGeminiFormat = (msg: OpenAI.ChatMessage, prevMsg?: OpenAI.ChatMessage): Gemini.ChatMessage => {
+const SYNTHETIC_THOUGHT_SIGNATURE = 'skip_thought_signature_validator';
+
+const mapOpenAIMessageToGeminiFormat = (msg: OpenAI.ChatMessage): Gemini.ChatMessage => {
     const role = msg.role === "assistant" ? "model" : "user";
-
-    if (msg.role === "tool") {
-
-        const originalToolCall = prevMsg?.tool_calls?.find(
-            (tc: OpenAI.ToolCall) => tc.id === msg.tool_call_id
-        );
-
-        return {
-            role: "user",
-            parts: [{
-                functionResponse: {
-                    name: originalToolCall?.function.name ?? "unknown",
-                    response: {
-                        result: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content)
-                    }
-                }
-            }]
-        };
-    }
 
     if (msg.role === "assistant" && msg.tool_calls && msg.tool_calls.length > 0) {
         const parts: Gemini.Part[] = [];
@@ -135,7 +118,9 @@ const mapOpenAIMessageToGeminiFormat = (msg: OpenAI.ChatMessage, prevMsg?: OpenA
                     functionCall: {
                         name: toolCall.function.name,
                         args: JSON.parse(toolCall.function.arguments)
-                    }
+                    },
+                    thoughtSignature: SYNTHETIC_THOUGHT_SIGNATURE,
+                    thought_signature: SYNTHETIC_THOUGHT_SIGNATURE
                 });
             }
         }
@@ -186,11 +171,43 @@ const mapOpenAIMessageToGeminiFormat = (msg: OpenAI.ChatMessage, prevMsg?: OpenA
 
 const mapOpenAIMessagesToGeminiFormat = (messages: OpenAI.ChatMessage[]): Gemini.ChatMessage[] => {
     const geminiMessages: Gemini.ChatMessage[] = [];
-    let prevMessage: OpenAI.ChatMessage | undefined = undefined;
-    for (const message of messages) {
-        geminiMessages.push(mapOpenAIMessageToGeminiFormat(message, prevMessage));
-        prevMessage = message;
+    
+    let currentToolParts: Gemini.Part[] = [];
+
+    for (let i = 0; i < messages.length; i++) {
+        const msg = messages[i];
+
+        if (msg.role === "tool") {
+            let originalToolCall: OpenAI.ToolCall | undefined;
+            for (let j = i - 1; j >= 0; j--) {
+                if (messages[j].role === "assistant" && messages[j].tool_calls) {
+                    originalToolCall = messages[j].tool_calls?.find((tc: OpenAI.ToolCall) => tc.id === msg.tool_call_id);
+                    if (originalToolCall) break;
+                }
+            }
+
+            currentToolParts.push({
+                functionResponse: {
+                    name: originalToolCall?.function.name ?? "unknown",
+                    response: {
+                        result: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content)
+                    }
+                }
+            });
+
+            const nextMsg = messages[i + 1];
+            if (!nextMsg || nextMsg.role !== "tool") {
+                geminiMessages.push({
+                    role: "user",
+                    parts: currentToolParts
+                });
+                currentToolParts = [];
+            }
+        } else {
+            geminiMessages.push(mapOpenAIMessageToGeminiFormat(msg));
+        }
     }
+
     return geminiMessages;
 };
 
@@ -231,4 +248,3 @@ const convertOpenAIFunctionToGemini = (fn: OpenAI.FunctionDeclaration): Gemini.F
         parameters: convertedParameters
     };
 };
-

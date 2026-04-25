@@ -12,18 +12,25 @@ export const mapModelToGemini = (model?: string): string => {
     // Model alias mapping - maps custom names to valid API model names
     const modelAliases: Record<string, string> = {
         // Gemini 3 Pro variants
-        "gemini-3-pro-high": "gemini-3-pro-preview",
-        "gemini-3-pro": "gemini-3-pro-preview",
-        "gemini-3-pro-preview": "gemini-3-pro-preview",
+        "gemini-3-pro-high": "gemini-3.1-pro-preview",
+        "gemini-3-pro": "gemini-3.1-pro-preview",
+        "gemini-3-pro-preview": "gemini-3.1-pro-preview",
+        "gemini-3.0-pro": "gemini-3.0-pro",
+        "gemini-3.1-pro": "gemini-3.1-pro-preview",
+        "gemini-3.1-pro-preview": "gemini-3.1-pro-preview",
 
         // Gemini 3 Flash variants
         "gemini-3-flash": "gemini-3-flash-preview",
         "gemini-3-flash-preview": "gemini-3-flash-preview",
         "gemini-3": "gemini-3-flash-preview",
 
+        // Gemini 3.1 Flash Lite variants
+        "gemini-3.1-flash-lite": "gemini-3.1-flash-lite-preview",
+        "gemini-3.1-flash-lite-preview": "gemini-3.1-flash-lite-preview",
+
         // Gemini 2.5 Flash variants
-        "gemini-2.5-flash-lite": "gemini-2.5-flash-lite-preview",
-        "gemini-2.5-flash-lite-preview": "gemini-2.5-flash-lite-preview",
+        "gemini-2.5-flash-lite": "gemini-2.5-flash-lite",
+        "gemini-2.5-flash-lite-preview": "gemini-2.5-flash-lite",
         "gemini-2.5-flash": "gemini-2.5-flash",
 
         // Gemini 2.5 Pro
