@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import express from "express";
 import {Command} from "@commander-js/extra-typings";
+import cors from "cors";
 
 import {setupAuthentication} from "./auth/auth.js";
 import {GeminiApiClient} from "./gemini/client.js";
@@ -39,6 +40,9 @@ export async function startServer() {
 
         const app = express();
         
+        // Enable CORS
+        app.use(cors());
+
         // Add request logging middleware
         app.use((req, res, next) => {
             logger.info(`${new Date().toISOString()} - ${req.method} ${req.url}`);
