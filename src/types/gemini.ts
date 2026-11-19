@@ -18,12 +18,13 @@ export type ChatCompletionRequestBody = {
         temperature?: number;
         thinkingConfig?: ThinkingConfig;
         maxOutputTokens?: number;
-        candidateCount?: number;
     };
 };
 
 export type ChatCompletionRequest = {
     model: string; // Can be any Gemini model name, not just enum values
+    /** Raw model id exactly as the client sent it, before provider mapping. */
+    sourceModel?: string;
     project: string;
     request: ChatCompletionRequestBody;
 };
@@ -100,6 +101,8 @@ export type Candidate = {
 export type UsageMetadata = {
     promptTokenCount?: number;
     candidatesTokenCount?: number;
+    thoughtsTokenCount?: number;
+    cachedContentTokenCount?: number;
 };
 
 export type Response = {

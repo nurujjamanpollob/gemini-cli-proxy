@@ -4,7 +4,10 @@ import {Command} from "@commander-js/extra-typings";
 import cors from "cors";
 
 import {setupAuthentication} from "./auth/auth.js";
+import {setupAntigravityAuthentication} from "./auth/antigravity-auth.js";
 import {GeminiApiClient} from "./gemini/client.js";
+import {AntigravityClient} from "./gemini/antigravity-client.js";
+import type { UpstreamClient } from "./gemini/upstream-client.js";
 import {createOpenAIRouter} from "./routes/openai.js";
 import {createAnthropicRouter} from "./routes/anthropic.js";
 import {
@@ -16,9 +19,15 @@ import {
 import {getLogger} from "./utils/logger.js";
 import chalk from "chalk";
 
+type UpstreamName = "antigravity" | "code-assist";
+
+const DEFAULT_UPSTREAM: UpstreamName =
+    (process.env.UPSTREAM_PROVIDER as UpstreamName) === "code-assist" ? "code-assist" : "antigravity";
+
 const program = new Command()
     .option("-p, --port <port>", "Server port", DEFAULT_PORT)
     .option("-g --google-cloud-project <googleCloudProject>", process.env.GOOGLE_CLOUD_PROJECT)
+    .option("--upstream <provider>", "Upstream entitlement: antigravity | code-assist", DEFAULT_UPSTREAM)
     .option("--disable-browser-auth", "Disables browser auth flow and uses code based auth", DISABLE_BROWSER_AUTH)
     .option("--disable-google-search", "Disables native Google Search tool", DISABLE_GOOGLE_SEARCH)
     .option("--disable-auto-model-switch", "Disables auto model switching in case of rate limiting", DISABLE_AUTO_MODEL_SWITCH)
@@ -26,17 +35,31 @@ const program = new Command()
 
 const opts = program.opts();
 
+/** Builds the upstream client selected on the command line. */
+async function createUpstreamClient(logger: ReturnType<typeof getLogger>): Promise<UpstreamClient> {
+    const project = opts.googleCloudProject ?? process.env.GOOGLE_CLOUD_PROJECT;
+
+    if (opts.upstream === "code-assist") {
+        logger.info(`upstream: Google Code Assist (Gemini CLI quota)`);
+        const authClient = await setupAuthentication(opts.disableBrowserAuth ?? false);
+        return new GeminiApiClient(
+            authClient,
+            project,
+            opts.disableAutoModelSwitch
+        );
+    }
+
+    logger.info(`upstream: Antigravity (cloudcode-pa entitlement quota)`);
+    const tokens = await setupAntigravityAuthentication(opts.disableBrowserAuth ?? false);
+    return new AntigravityClient(tokens, project);
+}
+
 export async function startServer() {
     const logger = getLogger("SERVER", chalk.green);
     logger.info("starting server...");
 
     try {
-        const authClient = await setupAuthentication(opts.disableBrowserAuth ?? false);
-        const geminiClient = new GeminiApiClient(
-            authClient,
-            opts.googleCloudProject ?? process.env.GOOGLE_CLOUD_PROJECT,
-            opts.disableAutoModelSwitch
-        );
+        const geminiClient = await createUpstreamClient(logger);
 
         const app = express();
         

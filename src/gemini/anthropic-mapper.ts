@@ -78,6 +78,7 @@ export const mapAnthropicMessagesRequestToGemini = (
 
     return {
         model,
+        sourceModel: request.model,
         project,
         request: geminiRequest,
     };

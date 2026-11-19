@@ -1,5 +1,7 @@
 import express from "express";
-import { GeminiApiClient, GeminiApiError } from "../gemini/client.js";
+import { GeminiApiError } from "../gemini/client.js";
+import type { UpstreamClient } from "../gemini/upstream-client.js";
+import { resolveModelInfo } from "../gemini/upstream-client.js";
 import * as Anthropic from "../types/anthropic.js";
 import { mapAnthropicMessagesRequestToGemini, mapGeminiResponseToAnthropic } from "../gemini/anthropic-mapper.js";
 import * as Gemini from "../types/gemini.js";
@@ -15,17 +17,18 @@ import {
     MIN_SIGNATURE_LENGTH,
 } from "../utils/signature-cache.js";
 
-export function createAnthropicRouter(geminiClient: GeminiApiClient): express.Router {
+export function createAnthropicRouter(geminiClient: UpstreamClient): express.Router {
     const router = express.Router();
     const logger = getLogger("SERVER-ANTHROPIC", chalk.green);
 
-    router.get("/v1/models", (_req, res) => {
-        const data = Object.values(Gemini.Model).map((modelId) => ({
-            id: modelId,
+    router.get("/v1/models", async (_req, res) => {
+        const models = await resolveModelInfo(geminiClient);
+        const data = models.map((model) => ({
+            id: model.id,
             type: "model",
-            display_name: modelId,
+            display_name: model.displayName ?? model.id,
             created_at: Math.floor(Date.now() / 1000),
-            owned_by: "Google",
+            owned_by: model.ownedBy,
         }));
 
         res.json({
@@ -212,7 +215,7 @@ export function createAnthropicRouter(geminiClient: GeminiApiClient): express.Ro
  */
 async function streamAnthropicResponse(
     res: express.Response,
-    geminiClient: GeminiApiClient,
+    geminiClient: UpstreamClient,
     geminiRequest: Gemini.ChatCompletionRequest,
     originalModel: string,
     messageId: string,

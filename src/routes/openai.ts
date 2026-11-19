@@ -1,22 +1,23 @@
 import express from "express";
-import {GeminiApiClient} from "../gemini/client.js";
-import * as Gemini from "../types/gemini.js";
 import * as OpenAI from "../types/openai.js";
 import {mapOpenAIChatCompletionRequestToGemini} from "../gemini/openai-mapper.js";
+import type { UpstreamClient } from "../gemini/upstream-client.js";
+import { resolveModelInfo } from "../gemini/upstream-client.js";
 import {getLogger} from "../utils/logger.js";
 import chalk from "chalk";
 
 
-export function createOpenAIRouter(geminiClient: GeminiApiClient): express.Router {
+export function createOpenAIRouter(geminiClient: UpstreamClient): express.Router {
     const router = express.Router();
     const logger = getLogger("SERVER-OPENAI", chalk.green);
 
-    router.get("/models", (_req, res) => {
-        const modelData = Object.values(Gemini.Model).map((modelId) => ({
-            id: modelId,
+    router.get("/models", async (_req, res) => {
+        const models = await resolveModelInfo(geminiClient);
+        const modelData = models.map((model) => ({
+            id: model.id,
             object: "model",
             created: Math.floor(Date.now() / 1000),
-            owned_by: "Google",
+            owned_by: model.ownedBy,
         }));
 
         res.json({

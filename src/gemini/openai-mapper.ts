@@ -47,6 +47,7 @@ export const mapOpenAIChatCompletionRequestToGemini = (
 
     return {
         model,
+        sourceModel: request.model,
         project,
         request: geminiRequest,
     };

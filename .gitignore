@@ -30,3 +30,4 @@ test_mapper.js
 test_proxy.js
 test_tool_payload.json
 .serena/
+.eazeditor/
