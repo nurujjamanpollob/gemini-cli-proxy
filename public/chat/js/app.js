@@ -1,9 +1,12 @@
-/* Proxy Console — application wiring (sessions, models, tools, streaming). */
+/* Proxy Console — application wiring: sessions, models, tools, streaming and turn actions. */
 
-import {getJson, streamChat} from "./api.js";
-import {el, MessageView, sessionItem} from "./render.js";
+import {deleteJson, getJson, rewindSession, streamChat} from "./api.js";
+import {el, sessionItem} from "./render.js";
+import {showToast} from "./toast.js";
+import {Thread} from "./thread.js";
 
 const PREFS_KEY = "proxy-console:prefs";
+const HEALTH_POLL_MS = 30000;
 const HINTS = [
     "Call a tool: what time is it in Asia/Dhaka?",
     "Compute (2+3)*sqrt(144) with the calculator tool",
@@ -18,9 +21,12 @@ const state = {
     enabled: new Set(),
     running: false,
     controller: null,
+    /** Persisted record index of the user message being edited; send rewinds to it. */
+    pendingRewind: null,
 };
 
 const $ = (id) => document.getElementById(id);
+
 const dom = {
     thread: $("thread"),
     welcome: $("welcome"),
@@ -41,10 +47,16 @@ const dom = {
     systemToggle: $("system-toggle"),
     systemPanel: $("system-panel"),
     systemPrompt: $("system-prompt"),
+    rewindBanner: $("rewind-banner"),
+    rewindCancel: $("rewind-cancel"),
     healthDot: $("health-dot"),
     healthText: $("health-text"),
     hints: $("hints"),
 };
+
+const thread = new Thread({container: dom.thread, emptyNode: dom.welcome});
+
+/* ---------------- preferences ---------------- */
 
 function loadPrefs() {
     try {
@@ -59,18 +71,39 @@ function savePrefs(patch) {
     localStorage.setItem(PREFS_KEY, JSON.stringify(next));
 }
 
+/* ---------------- thread helpers ---------------- */
+
 function scrollToBottom() {
     dom.thread.scrollTop = dom.thread.scrollHeight;
 }
 
-function clearThread() {
-    dom.thread.replaceChildren();
-    dom.thread.append(dom.welcome);
-    dom.welcome.hidden = false;
+function showWelcome(visible) {
+    dom.welcome.hidden = !visible;
 }
 
-function hideWelcome() {
-    if (!dom.welcome.hidden) dom.welcome.hidden = true;
+function clearThread() {
+    thread.clear();
+    showWelcome(true);
+}
+
+/** Copy / edit / regenerate buttons for a rendered turn. */
+function wireTurn(view) {
+    view.enableActions({onCopy: copyText, onEdit: beginRewindDraft, onRegenerate: regenerate});
+}
+
+/** Only the newest answer keeps its regenerate button. */
+function refreshRegenerateAffordances() {
+    const latest = thread.lastAssistantView();
+    for (const view of thread.views) view.setRegenerateEnabled(view === latest);
+}
+
+async function copyText(text) {
+    try {
+        await navigator.clipboard.writeText(text);
+        showToast("copied to clipboard", "success");
+    } catch {
+        showToast("clipboard unavailable in this context", "error");
+    }
 }
 
 /* ---------------- sessions ---------------- */
@@ -80,6 +113,8 @@ async function refreshSessions() {
         const data = await getJson("/chat/api/sessions");
         state.sessions = data.sessions ?? [];
         renderSessions();
+        const open = state.sessions.find((session) => session.id === state.sessionId);
+        thread.syncRecordCount(open?.messageCount);
     } catch (error) {
         console.warn("sessions unavailable", error);
     }
@@ -97,37 +132,45 @@ async function openSession(id) {
     if (state.running) return;
     try {
         const data = await getJson(`/chat/api/sessions/${id}`);
+        const records = data.session.messages ?? [];
+
         state.sessionId = id;
-        renderSessions();
-        clearThread();
-        hideWelcome();
-
-        for (const record of data.session.messages ?? []) {
-            const view = new MessageView(record.role, {model: record.model ?? ""});
-            view.setText(record.content ?? "");
-            if (record.thought) view.appendThought(record.thought);
-            for (const trace of record.traces ?? []) view.addTool(trace).update(trace);
-            dom.thread.append(view.root);
-        }
-
+        clearPendingRewind();
+        thread.load(records, {model: data.session.model ?? ""});
+        for (const view of thread.views) wireTurn(view);
+        showWelcome(records.length === 0);
         if (data.session.model) dom.model.value = data.session.model;
+
+        renderSessions();
+        refreshRegenerateAffordances();
         scrollToBottom();
     } catch (error) {
-        console.error(error);
+        showToast(`could not open session: ${error.message}`, "error");
     }
 }
 
 async function deleteSession(id) {
     try {
-        await fetch(`/chat/api/sessions/${id}`, {method: "DELETE"});
+        await deleteJson(`/chat/api/sessions/${id}`);
         if (state.sessionId === id) {
             state.sessionId = null;
+            clearPendingRewind();
             clearThread();
         }
         await refreshSessions();
+        showToast("session deleted", "success");
     } catch (error) {
-        console.error(error);
+        showToast(`delete failed: ${error.message}`, "error");
     }
+}
+
+function startNewConversation() {
+    if (state.running) return;
+    state.sessionId = null;
+    clearPendingRewind();
+    clearThread();
+    renderSessions();
+    dom.input.focus();
 }
 
 /* ---------------- models + tools ---------------- */
@@ -190,6 +233,12 @@ function renderTools() {
     dom.toolsBody.replaceChildren(...nodes);
 }
 
+function setAllTools(on) {
+    state.enabled = on ? new Set(state.tools.map((tool) => tool.id)) : new Set();
+    savePrefs({enabledTools: [...state.enabled]});
+    renderTools();
+}
+
 function toggleTool(id, checked) {
     if (checked) state.enabled.add(id);
     else state.enabled.delete(id);
@@ -209,15 +258,12 @@ async function sendMessage(text) {
     const message = text.trim();
     if (!message || state.running) return;
 
-    hideWelcome();
+    showWelcome(false);
     setRunning(true);
 
-    const userView = new MessageView("user");
-    userView.setText(message);
-    dom.thread.append(userView.root);
-
-    const assistant = new MessageView("assistant", {model: dom.model.value});
-    dom.thread.append(assistant.root);
+    const turn = thread.beginTurn(message, dom.model.value);
+    wireTurn(turn.assistantView);
+    refreshRegenerateAffordances();
     scrollToBottom();
 
     state.controller = new AbortController();
@@ -233,22 +279,76 @@ async function sendMessage(text) {
                 reasoningEffort: dom.effort.value || undefined,
                 tools: [...state.enabled],
             },
-            (event) => handleEvent(event, assistant),
+            (event) => handleEvent(event, turn.assistantView),
             state.controller.signal,
         );
     } catch (error) {
-        if (!isAbort(error)) assistant.setError(String(error.message ?? error));
+        if (!isAbort(error)) {
+            turn.assistantView.setError(String(error.message ?? error));
+            showToast("the run failed — details are in the message", "error");
+        }
     } finally {
-        assistant.finalize();
+        turn.assistantView.finalize();
         setRunning(false);
         state.controller = null;
         await refreshSessions();
+        refreshRegenerateAffordances();
         scrollToBottom();
     }
 }
 
+/**
+ * Rewinds the persisted transcript to `fromIndex` and re-sends `text`.
+ * Shared by regenerate (latest answer) and edit-and-resend (any earlier prompt).
+ */
+async function resendFrom(fromIndex, text) {
+    if (!state.sessionId || state.running) return;
+
+    try {
+        await rewindSession(state.sessionId, fromIndex);
+    } catch (error) {
+        showToast(`could not rewind: ${error.message}`, "error");
+        return;
+    }
+
+    await openSession(state.sessionId);
+    await sendMessage(text);
+}
+
+async function regenerate() {
+    const view = thread.lastAssistantView();
+    if (!view || !state.sessionId) {
+        showToast("nothing to regenerate yet", "info");
+        return;
+    }
+
+    const anchor = thread.exchangeFor(view);
+    if (!anchor?.text) {
+        showToast("the prompt for that answer is gone", "error");
+        return;
+    }
+
+    await resendFrom(anchor.index, anchor.text);
+}
+
+/** Loads an earlier user message into the composer and arms rewind-on-send. */
+function beginRewindDraft(view) {
+    if (state.running || view.recordIndex < 0) return;
+
+    state.pendingRewind = view.recordIndex;
+    dom.input.value = view.raw;
+    autoGrow();
+    dom.rewindBanner.hidden = false;
+    dom.input.focus();
+}
+
+function clearPendingRewind() {
+    state.pendingRewind = null;
+    dom.rewindBanner.hidden = true;
+}
+
 function isAbort(error) {
-    return error && (error.name === "AbortError" || String(error.message).includes("abort"));
+    return Boolean(error) && (error.name === "AbortError" || String(error.message).includes("abort"));
 }
 
 function handleEvent(event, view) {
@@ -282,6 +382,22 @@ function handleEvent(event, view) {
     }
 }
 
+/* ---------------- health ---------------- */
+
+async function pingHealth() {
+    let online = false;
+    try {
+        await getJson("/health");
+        online = true;
+    } catch {
+        online = false;
+    }
+
+    dom.healthDot.dataset.state = online ? "ok" : "bad";
+    const serversUp = state.servers.filter((server) => server.state === "connected").length;
+    dom.healthText.textContent = online ? `proxy online${serversUp ? ` · ${serversUp} mcp` : ""}` : "proxy offline";
+}
+
 /* ---------------- wiring ---------------- */
 
 function autoGrow() {
@@ -295,41 +411,48 @@ function toggleDrawer(button, panel) {
     button.setAttribute("aria-expanded", String(open));
 }
 
-function init() {
-    const prefs = loadPrefs();
-    dom.temperature.value = prefs.temperature ?? 1;
-    dom.tempValue.textContent = Number(dom.temperature.value).toFixed(1);
-    dom.effort.value = prefs.reasoningEffort ?? "";
-    dom.systemPrompt.value = prefs.systemPrompt ?? "";
+function closeAllDrawers() {
+    for (const [button, panel] of [[dom.toolsToggle, dom.toolsPanel], [dom.systemToggle, dom.systemPanel]]) {
+        if (!panel.hidden) toggleDrawer(button, panel);
+    }
+}
 
-    dom.hints.replaceChildren(...HINTS.map((hint) => el("button", {class: "hint", type: "button", text: hint, onclick: () => {
-        dom.input.value = hint;
-        autoGrow();
-        dom.input.focus();
-    }})));
+async function submitComposer() {
+    const value = dom.input.value.trim();
+    if (!value || state.running) return;
 
+    const rewindFrom = state.pendingRewind;
+    dom.input.value = "";
+    autoGrow();
+
+    if (rewindFrom !== null) {
+        clearPendingRewind();
+        await resendFrom(rewindFrom, value);
+        return;
+    }
+
+    await sendMessage(value);
+}
+
+function wireEvents() {
     dom.composer.addEventListener("submit", (event) => {
         event.preventDefault();
-        const value = dom.input.value;
-        dom.input.value = "";
-        autoGrow();
-        sendMessage(value);
+        submitComposer();
     });
 
     dom.input.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" && !event.shiftKey) {
-            event.preventDefault();
-            dom.composer.requestSubmit();
-        }
+        if (event.key !== "Enter") return;
+        // Enter and Ctrl/Cmd+Enter send; Shift+Enter inserts a newline.
+        if (event.shiftKey && !event.ctrlKey && !event.metaKey) return;
+        event.preventDefault();
+        submitComposer();
     });
     dom.input.addEventListener("input", autoGrow);
 
     dom.stop.addEventListener("click", () => state.controller?.abort());
-    dom.newChat.addEventListener("click", () => {
-        if (state.running) return;
-        state.sessionId = null;
-        renderSessions();
-        clearThread();
+    dom.newChat.addEventListener("click", startNewConversation);
+    dom.rewindCancel.addEventListener("click", () => {
+        clearPendingRewind();
         dom.input.focus();
     });
 
@@ -355,28 +478,42 @@ function init() {
         setTimeout(() => (button.textContent = "copy"), 1200);
     });
 
-    checkHealth();
-    loadModels().catch((error) => console.error(error));
-    loadTools().catch((error) => console.error(error));
-    refreshSessions();
+    document.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape") return;
+        if (state.pendingRewind !== null) clearPendingRewind();
+        closeAllDrawers();
+    });
 }
 
-function setAllTools(on) {
-    state.enabled = on ? new Set(state.tools.map((tool) => tool.id)) : new Set();
-    savePrefs({enabledTools: [...state.enabled]});
-    renderTools();
-}
+async function init() {
+    const prefs = loadPrefs();
+    dom.temperature.value = prefs.temperature ?? 1;
+    dom.tempValue.textContent = Number(dom.temperature.value).toFixed(1);
+    dom.effort.value = prefs.reasoningEffort ?? "";
+    dom.systemPrompt.value = prefs.systemPrompt ?? "";
 
-async function checkHealth() {
-    try {
-        await getJson("/health");
-        dom.healthDot.dataset.state = "ok";
-        const serversUp = state.servers.filter((server) => server.state === "connected").length;
-        dom.healthText.textContent = `proxy online${serversUp ? ` · ${serversUp} mcp` : ""}`;
-    } catch {
-        dom.healthDot.dataset.state = "bad";
-        dom.healthText.textContent = "proxy offline";
+    dom.hints.replaceChildren(
+        ...HINTS.map((hint) => el("button", {
+            class: "hint",
+            type: "button",
+            text: hint,
+            onclick: () => {
+                dom.input.value = hint;
+                autoGrow();
+                dom.input.focus();
+            },
+        })),
+    );
+
+    wireEvents();
+
+    const results = await Promise.allSettled([loadModels(), loadTools(), refreshSessions()]);
+    for (const result of results) {
+        if (result.status === "rejected") console.error(result.reason);
     }
+
+    await pingHealth();
+    setInterval(() => pingHealth(), HEALTH_POLL_MS);
 }
 
 init();

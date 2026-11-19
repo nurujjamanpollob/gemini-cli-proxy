@@ -161,3 +161,74 @@
 
 .footline { text-align: center; font-family: var(--mono); font-size: 10.5px; color: var(--text-faint); margin: 10px 0 2px; letter-spacing: 0.06em; }
 .footline .credit-name { color: var(--accent); }
+
+/* ---------- per-turn actions ---------- */
+.msg-actions { display: flex; gap: 6px; margin-top: 8px; opacity: 0; transition: opacity 0.14s ease; }
+.msg:hover .msg-actions,
+.msg-actions:focus-within { opacity: 1; }
+.act {
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--text-faint);
+    border-radius: 7px;
+    padding: 3px 9px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color 0.14s ease, border-color 0.14s ease, background 0.14s ease;
+}
+.act:hover { color: var(--accent); border-color: rgba(94, 234, 212, 0.35); background: rgba(94, 234, 212, 0.07); }
+
+/* ---------- rewind banner ---------- */
+.rewind-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+    padding: 9px 12px;
+    border: 1px solid rgba(167, 139, 250, 0.34);
+    border-radius: var(--radius-sm);
+    background: rgba(167, 139, 250, 0.08);
+    color: #d9cdf;
+    font-size: 12.5px;
+    color: #d9cdff;
+.rewind-glyph { font-size: 15px; line-height: 1; color: var(--accent-2); }
+.rewind-text { flex: 1; min-width: 0; }
+
+/* ---------- toasts ---------- */
+.toast-layer {
+    position: fixed;
+    left: 50%;
+    bottom: 26px;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    z-index: 40;
+    pointer-events: none;
+}
+.toast {
+    border: 1px solid var(--line-strong);
+    background: rgba(9, 12, 20, 0.92);
+    backdrop-filter: blur(12px);
+    color: var(--text);
+    border-radius: 999px;
+    padding: 8px 16px;
+    font-size: 12.5px;
+    box-shadow: var(--shadow);
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.toast.in { opacity: 1; transform: none; }
+.toast.tone-ok { border-color: rgba(94, 234, 212, 0.4); color: #b8fff0; }
+.toast.tone-bad { border-color: rgba(251, 113, 133, 0.45); color: #ffd9df; }
+
+@media (prefers-reduced-motion: reduce) {
+    .thread { scroll-behavior: auto; }
+    .msg { animation: none; }
+    .caret::after { animation: none; }
+}

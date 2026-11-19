@@ -35,6 +35,8 @@ export class MessageView {
         this.raw = "";
         this.thoughtText = "";
         this.toolNodes = new Map();
+        /** Position of the matching persisted record; assigned by Thread, -1 while detached. */
+        this.recordIndex = -1;
 
         this.bubble = el("div", {class: "bubble"});
         this.tools = el("div", {class: "tools", hidden: true});
@@ -43,7 +45,8 @@ export class MessageView {
         this.thought = el("details", {class: "thought", hidden: true}, [el("summary", {text: "reasoning"}), this.thoughtBody]);
 
         const meta = el("div", {class: "meta", text: [model, formatTime()].filter(Boolean).join("  ·  ")});
-        this.body = el("div", {class: "body"}, [meta, this.thought, this.bubble, this.tools, this.usageNode]);
+        this.actionsNode = el("div", {class: "msg-actions", hidden: true});
+        this.body = el("div", {class: "body"}, [meta, this.thought, this.bubble, this.tools, this.usageNode, this.actionsNode]);
         this.root = el("div", {class: "msg", dataset: {role}}, [avatarFor(role), this.body]);
 
         if (role === "user") this.setText(this.raw);
@@ -92,10 +95,39 @@ export class MessageView {
         else this.addTool(trace);
     }
 
+    /**
+     * Renders the per-turn action row. `onCopy` always applies, `onEdit` targets user turns and
+     * `onRegenerate` assistant turns; regenerate is hidden for all but the newest answer via
+     * setRegenerateEnabled().
+     */
+    enableActions({onCopy, onEdit, onRegenerate}) {
+        const buttons = [actionButton("copy", "Copy this message as text", () => onCopy(this.raw))];
+
+        if (this.role === "user" && onEdit) {
+            buttons.push(actionButton("edit", "Edit and resend from here", () => onEdit(this)));
+        }
+        if (this.role === "assistant" && onRegenerate) {
+            this.regenerateButton = actionButton("regenerate", "Rewind and answer again", () => onRegenerate(this));
+            buttons.push(this.regenerateButton);
+        }
+
+        this.actionsNode.replaceChildren(...buttons);
+        this.actionsNode.hidden = false;
+    }
+
+    /** Only the newest assistant turn can be regenerated; everything else hides the affordance. */
+    setRegenerateEnabled(enabled) {
+        if (this.regenerateButton) this.regenerateButton.hidden = !enabled;
+    }
+
     finalize() {
         this.bubble.classList.remove("caret");
         if (!this.raw) this.setText("");
     }
+}
+
+function actionButton(label, title, onclick) {
+    return el("button", {class: "act", type: "button", title, onclick, text: label});
 }
 
 /** Collapsible MCP tool invocation card. */

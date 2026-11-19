@@ -79,6 +79,8 @@ export default tseslint.config(
                 fetch: "readonly",
                 localStorage: "readonly",
                 navigator: "readonly",
+                requestAnimationFrame: "readonly",
+                setInterval: "readonly",
                 setTimeout: "readonly",
                 window: "readonly",
             },

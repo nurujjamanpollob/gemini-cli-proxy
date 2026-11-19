@@ -56,12 +56,16 @@ Baseline test failures (also fail on clean `main`, tracked in README "Known issu
    `tool_end` is emitted exactly once per call, by `executeToolCall` only.
 6. **MCP tool ids** exposed to models are `server__tool`; filters (`include`/`exclude`) use raw names.
 7. **Config discovery order**: `--mcp-config` → `PROXY_MCP_CONFIG` → `./mcp.config.json` →
-   `~/.gemini/mcp.config.json`. Missing config = warning, never fatal. Sessions persist to
-   `data/sessions.json` (gitignored); UI prefs live in localStorage only.
+   `~/.gemini/mcp.config.json`. Missing config = warning, never fatal. Sessions persist one file per
+   session under `data/chats/<id>.json` (gitignored); UI prefs live in localStorage only.
 8. **No auth on `/chat/api/*`** (mirrors existing proxy behaviour): bind to localhost or front it.
-9. **Builtin tools**: the `core` MCP server is in-process (`createBuiltinServer`) and must stay
+9. **Builtin tools**: the `core` MCP server is in-process (`createBuiltinMcpServer`) and must stay
    dependency-light; the calculator parser (`src/mcp/expression.ts`) is a hand-written shunting-yard
    evaluator - no `eval`, bounded length/depth, explicit errors.
+10. **Rewind contract**: `/chat/api/sessions/:id/rewind` drops records from `fromIndex` onwards, and
+    the UI's `MessageView.recordIndex` (assigned in `public/chat/js/thread.js`) is a turn's position in
+    `ChatSession.messages`. Edit / regenerate = rewind to the user record, then re-send that text.
+
 ## Style constraints (enforced by eslint for new code)
 
 4-space indent, double quotes, `Array<T>` over `T[]` for non-simple types, no `{ ... }` inner spacing

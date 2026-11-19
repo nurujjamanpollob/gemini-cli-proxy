@@ -13,20 +13,40 @@ async function errorMessage(response) {
     return `${response.status}: ${detail}`;
 }
 
-export async function getJson(path) {
-    const response = await fetch(path, {headers: {accept: "application/json"}});
+async function send(method, path, payload) {
+    const response = await fetch(path, {
+        method,
+        headers: JSON_HEADERS,
+        ...(payload === undefined ? {} : {body: JSON.stringify(payload ?? {})}),
+    });
     if (!response.ok) throw new Error(await errorMessage(response));
     return response.json();
 }
 
-export async function postJson(path, payload) {
-    const response = await fetch(path, {
-        method: "POST",
-        headers: JSON_HEADERS,
-        body: JSON.stringify(payload ?? {}),
-    });
-    if (!response.ok) throw new Error(await errorMessage(response));
-    return response.json();
+export function getJson(path) {
+    return send("GET", path);
+}
+
+export function postJson(path, payload) {
+    return send("POST", path, payload ?? {});
+}
+
+export function patchJson(path, payload) {
+    return send("PATCH", path, payload ?? {});
+}
+
+export function deleteJson(path) {
+    return send("DELETE", path);
+}
+
+/** Renames a session (sidebar inline rename). */
+export function renameSession(id, title) {
+    return patchJson(`/chat/api/sessions/${id}`, {title});
+}
+
+/** Drops transcript records from `fromIndex` onwards (edit / regenerate flows). */
+export function rewindSession(id, fromIndex) {
+    return postJson(`/chat/api/sessions/${id}/rewind`, {fromIndex});
 }
 
 /** Parses one SSE frame (multi-line `data:` supported, comments ignored). */

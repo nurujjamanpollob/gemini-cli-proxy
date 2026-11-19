@@ -100,18 +100,21 @@ localhost or put your own auth in front before exposing it.
 
 ## 💬 Chat console (`/ui`)
 
-Open `http://localhost:8787/ui` after starting the proxy. Static assets only — no build step, no
+Open `http://localhost:3456/ui` after starting the proxy (override with `--port`). Static assets
+only — no build step, no
 framework, no external CDN.
 
-- **Sessions** persist to `data/sessions.json` (gitignored) and survive restarts; rename or delete
-  them from the sidebar.
-- **Streaming** uses one SSE event per protocol message: `session`, `round`, `thinking_start`,
-  `thinking_chunk`, `token`, `tool_start`, `tool_end`, `message`, `usage`, `error`, `done`.
+- **Sessions** persist to `data/chats/<id>.json` (gitignored) and survive restarts. Rename or delete
+  them from the sidebar; opening one replays its full transcript including tool traces.
+- **Turn actions** on every message: copy as text, edit an earlier prompt (rewinds the transcript to
+  that point before sending), or regenerate the newest answer.
 - **Reasoning** from `-thinking` models renders in a collapsible block above the answer.
 - **Tool activity** appears as cards with arguments, output, duration and error state; the model's
   final answer arrives only after every tool round settles.
+- **Streaming** uses one SSE event per protocol message: `session`, `round`, `token`, `thought`,
+  `tool_start`, `tool_end`, `message`, `usage`, `error`, `done`.
 - **Controls**: model picker (live catalogue), per-tool toggles, system prompt editor, Stop button,
-  `Ctrl+Enter` to send.
+  Enter or `Ctrl+Enter` to send (`Shift+Enter` inserts a newline), transient toasts for every action.
 
 API used by the console (same-origin, no auth):
 
@@ -121,10 +124,11 @@ API used by the console (same-origin, no auth):
 | `GET` | `/chat/api/sessions` | session summaries |
 | `POST` | `/chat/api/sessions` | create a session |
 | `GET` · `PATCH` · `DELETE` | `/chat/api/sessions/:id` | read / rename / delete one session |
+| `POST` | `/chat/api/sessions/:id/rewind` | drop records from `{"fromIndex":n}` onwards (edit / regenerate) |
 | `POST` | `/chat/api/stream` | run a turn (SSE) |
 
 ```bash
-curl -N localhost:8787/chat/api/stream \
+curl -N localhost:3456/chat/api/stream \
   -H 'content-type: application/json' \
   -d '{"message":"Use the calculate tool for (17+28)*3","tools":["core__calculate"]}'
 ```
