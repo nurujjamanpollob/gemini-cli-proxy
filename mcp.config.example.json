@@ -1,0 +1,31 @@
+{
+  "builtin": true,
+  "servers": {
+    "everything": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-everything"],
+      "timeoutMs": 30000
+    },
+    "memory": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"]
+    },
+    "sequential-thinking": {
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "disabled": true
+    },
+    "remote-http": {
+      "transport": "http",
+      "url": "https://mcp.example.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${MY_MCP_TOKEN}"
+      },
+      "includeTools": ["search_docs", "fetch_page"],
+      "disabled": true
+    }
+  }
+}
