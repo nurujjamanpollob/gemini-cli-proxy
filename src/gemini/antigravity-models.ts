@@ -1,215 +1,37 @@
-import {
-    API_VERSION,
-    PROVISION_ENDPOINTS,
-    antigravityHeaders,
-} from "../utils/antigravity-constants.js";
-import { getLogger } from "../utils/logger.js";
+/**
+ * Model resolution policy for the Antigravity upstream.
+ *
+ * Callers name capabilities, not backend ids: every request is classified into a
+ * `TierRole` bucket and resolved against the live catalogue that
+ * `antigravity-catalogue.ts` unions from both provisioning hosts. This module is
+ * also the public surface of the component — the fetch/affinity helpers are
+ * re-exported so consumers keep a single import point.
+ */
 import chalk from "chalk";
+
+import { getLogger } from "../utils/logger.js";
+import {
+    clearCatalogueCache,
+    fetchCatalogue,
+    generationEndpoints,
+    knownCatalogue,
+} from "./antigravity-catalogue.js";
+import type {
+    AntigravityModel,
+    ModelFamily,
+    ResolvedModel,
+    TierRole,
+} from "./antigravity-catalogue-data.js";
+import {
+    DEFAULT_ROLE,
+    ROLE_ALIASES,
+    TIER_PREFERENCE,
+} from "./antigravity-catalogue-data.js";
 
 const logger = getLogger("AGY-MODELS", chalk.blue);
 
-export type ModelFamily = "gemini" | "claude" | "other";
-
-/** Capability buckets callers map onto; the backend serves different ids. */
-export type TierRole = "opus" | "sonnet" | "pro" | "flash" | "lite";
-
-export interface AntigravityModel {
-    id: string;
-    displayName?: string;
-    family: ModelFamily;
-    supportsThinking: boolean;
-    maxOutputTokens?: number;
-}
-
-export interface ResolvedModel {
-    id: string;
-    family: ModelFamily;
-    supportsThinking: boolean;
-    maxOutputTokens?: number;
-    role: TierRole;
-}
-
-/** Catalogue TTL — the backend rewrites entitlements roughly per session. */
-const CATALOGUE_TTL_MS = 5 * 60 * 1000;
-
-/** Seed list, used only when `fetchAvailableModels` is unreachable (verified 2026-11-19). */
-const SEED_MODEL_IDS: readonly string[] = [
-    "gemini-3.8-flash-high",
-    "gemini-3.8-flash-tiered",
-    "gemini-3.8-flash-medium",
-    "gemini-3.8-flash-low",
-    "gemini-3.5-flash-lite",
-    "gemini-3.1-flash-lite",
-    "gemini-3-flash",
-    "gemini-2.5-pro",
-    "gemini-2.5-flash-thinking",
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
-    "claude-opus-4-6-thinking",
-    "claude-sonnet-4-6",
-];
-
-/**
- * Preference order per capability bucket, strongest first. Only ids that the
- * live backend actually serves are listed; `pickForRole` skips absent ones.
- */
-const TIER_PREFERENCE: Record<TierRole, readonly string[]> = {
-    opus: ["claude-opus-4-6-thinking", "claude-sonnet-4-6"],
-    sonnet: ["claude-sonnet-4-6", "claude-opus-4-6-thinking"],
-    pro: [
-        "gemini-3.8-flash-high",
-        "gemini-3.8-flash-tiered",
-        "gemini-3.8-flash-medium",
-        "gemini-2.5-pro",
-    ],
-    flash: [
-        "gemini-3.8-flash-medium",
-        "gemini-3.8-flash-low",
-        "gemini-3.5-flash-lite",
-        "gemini-2.5-flash-thinking",
-        "gemini-2.5-flash",
-    ],
-    lite: [
-        "gemini-3.1-flash-lite",
-        "gemini-3.5-flash-lite",
-        "gemini-2.5-flash-lite",
-        "gemini-3.8-flash-low",
-    ],
-};
-
-/** What an unrecognised model name degrades to. */
-const DEFAULT_ROLE: TierRole = "pro";
-
-/** Client-facing names mapped onto capability buckets, not onto backend ids. */
-const ROLE_ALIASES: Record<string, TierRole> = {
-    // Gemini Pro line (any generation) -> strongest tier
-    "gemini-pro": "pro",
-    "gemini-2.5-pro": "pro",
-    "gemini-3-pro": "pro",
-    "gemini-3-pro-preview": "pro",
-    "gemini-3-pro-high": "pro",
-    "gemini-3-pro-low": "flash",
-    "gemini-3.1-pro": "pro",
-    "gemini-3.1-pro-preview": "pro",
-    "gemini-3.1-pro-high": "pro",
-    "gemini-3.1-pro-low": "flash",
-    // Gemini Flash line
-    "gemini-flash": "flash",
-    "gemini-2.5-flash": "flash",
-    "gemini-2.5-flash-thinking": "flash",
-    "gemini-3-flash": "flash",
-    "gemini-3-flash-preview": "flash",
-    "gemini-3-flash-thinking": "flash",
-    "gemini-3.5-flash": "flash",
-    // Gemini Lite line
-    "gemini-2.5-flash-lite": "lite",
-    "gemini-3.1-flash-lite": "lite",
-    "gemini-3.1-flash-lite-preview": "lite",
-    "gemini-3.5-flash-lite": "lite",
-    // Third-party families served by the same backend
-    "gpt-oss-120b": "flash",
-    "gpt-oss-20b": "lite",
-};
-
-interface CatalogueCache {
-    models: AntigravityModel[];
-    fetchedAt: number;
-}
-
-let cache: CatalogueCache | null = null;
-
-function familyOf(id: string): ModelFamily {
-    const lower = id.toLowerCase();
-    if (lower.includes("claude")) {
-        return "claude";
-    }
-    if (lower.includes("gemini")) {
-        return "gemini";
-    }
-    return "other";
-}
-
-/** Names that are never user-selectable models on this backend. */
-function isInternalModel(id: string): boolean {
-    const lower = id.toLowerCase();
-    return (
-        lower.startsWith("tab_") ||
-        lower.startsWith("chat_") ||
-        lower.endsWith("-disabled") ||
-        lower.includes("embedding") ||
-        lower.includes("rerank")
-    );
-}
-
-/**
- * Pulls the live catalogue from `v1internal:fetchAvailableModels`.
- * Returns null instead of throwing so callers can fall back to the seed list.
- */
-export async function fetchCatalogue(
-    accessToken: string,
-    projectId?: string | null,
-): Promise<AntigravityModel[] | null> {
-    if (cache && Date.now() - cache.fetchedAt < CATALOGUE_TTL_MS) {
-        return cache.models;
-    }
-
-    for (const endpoint of PROVISION_ENDPOINTS) {
-        try {
-            const response = await fetch(`${endpoint}/${API_VERSION}:fetchAvailableModels`, {
-                method: "POST",
-                headers: {
-                    Authorization: `Bearer ${accessToken}`,
-                    ...antigravityHeaders("application/json"),
-                },
-                body: JSON.stringify(projectId ? { project: projectId } : {}),
-            });
-
-            if (!response.ok) {
-                logger.warn(`fetchAvailableModels rejected by ${endpoint} with ${response.status}`);
-                continue;
-            }
-
-            const payload = (await response.json()) as {
-                models?: Record<
-                    string,
-                    { displayName?: string; supportsThinking?: boolean; maxOutputTokens?: number }
-                >;
-            };
-            const entries = Object.entries(payload.models ?? {});
-            if (entries.length === 0) {
-                continue;
-            }
-
-            const models: AntigravityModel[] = entries
-                .filter(([id]) => !isInternalModel(id))
-                .map(([id, meta]) => ({
-                    id,
-                    displayName: meta?.displayName ?? id,
-                    family: familyOf(id),
-                    supportsThinking: meta?.supportsThinking === true || id.includes("thinking"),
-                    maxOutputTokens: meta?.maxOutputTokens,
-                }));
-
-            cache = { models, fetchedAt: Date.now() };
-            logger.debug(`catalogue refreshed with ${models.length} selectable models`);
-            return models;
-        } catch (error) {
-            logger.warn(`fetchAvailableModels failed at ${endpoint}: ${(error as Error).message}`);
-        }
-    }
-
-    return cache?.models ?? null;
-}
-
-/** Catalogue to reason about right now: live cache first, seed list otherwise. */
-export function knownCatalogue(): AntigravityModel[] {
-    return cache?.models ?? SEED_MODEL_IDS.map((id) => ({
-        id,
-        displayName: id,
-        family: familyOf(id),
-        supportsThinking: id.includes("thinking"),
-    }));
-}
+export type { AntigravityModel, ModelFamily, ResolvedModel, TierRole };
+export { clearCatalogueCache, fetchCatalogue, generationEndpoints, knownCatalogue };
 
 /** Classifies a caller-supplied name into a capability bucket. */
 function roleOf(name: string): TierRole | null {
@@ -240,6 +62,7 @@ function toResolved(model: AntigravityModel, role: TierRole): ResolvedModel {
         supportsThinking: model.supportsThinking,
         maxOutputTokens: model.maxOutputTokens,
         role,
+        endpoints: [...model.endpoints],
     };
 }
 
@@ -259,7 +82,8 @@ function pickForRole(role: TierRole, catalogue: AntigravityModel[]): ResolvedMod
 
 /**
  * Maps any caller-supplied model name onto a model the Antigravity tier serves.
- * Unknown names degrade to the strongest Gemini bucket instead of failing.
+ * Exact live ids always win (that is how daily-only and image tiers are reached);
+ * everything else degrades to its capability bucket instead of failing.
  */
 export function resolveModel(requested: string | undefined): ResolvedModel {
     const catalogue = knownCatalogue();
@@ -321,8 +145,4 @@ export function fallbackChain(model: ResolvedModel, limit = 3): ResolvedModel[] 
     }
 
     return chain.slice(0, limit);
-}
-
-export function clearCatalogueCache(): void {
-    cache = null;
 }

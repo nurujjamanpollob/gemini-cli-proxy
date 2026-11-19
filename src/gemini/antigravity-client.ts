@@ -8,7 +8,6 @@ import type * as OpenAI from "../types/openai.js";
 import {
     API_VERSION,
     FALLBACK_PROJECT_ID,
-    GENERATE_ENDPOINTS,
     PROVISION_ENDPOINTS,
     antigravityHeaders,
     clientMetadata,
@@ -17,7 +16,13 @@ import { OPENAI_CHAT_COMPLETION_OBJECT } from "../utils/constant.js";
 import { getLogger, Logger } from "../utils/logger.js";
 import { GeminiApiError } from "./client.js";
 import { buildAntigravityRequest } from "./antigravity-request-builder.js";
-import { fallbackChain, fetchCatalogue, resolveModel, type AntigravityModel } from "./antigravity-models.js";
+import {
+    fallbackChain,
+    fetchCatalogue,
+    generationEndpoints,
+    resolveModel,
+    type AntigravityModel,
+} from "./antigravity-models.js";
 import type { CompletionResult, UpstreamClient, UpstreamModelInfo } from "./upstream-client.js";
 
 type LoosePart = Record<string, unknown>;
@@ -139,7 +144,10 @@ export class AntigravityClient implements UpstreamClient {
             const model = chain[index];
             const envelope = buildAntigravityRequest({ ...request, project }, model, sessionKey);
 
-            for (const endpoint of GENERATE_ENDPOINTS) {
+            // Hosts proven to list this id run first. Production answers 429 (not
+            // 404) for ids it never served, which would masquerade as quota
+            // exhaustion and force a pointless tier fallback.
+            for (const endpoint of generationEndpoints(model)) {
                 try {
                     yield* this.streamAgainst(endpoint, envelope, model.id);
                     return;
@@ -160,7 +168,8 @@ export class AntigravityClient implements UpstreamClient {
                         this.logger.warn(`${model.id} quota exhausted on ${endpoint}; trying another tier`);
                         break;
                     }
-                    this.logger.warn(`${endpoint} failed for ${model.id}: ${(error as Error).message}`);
+                    const detail = error instanceof Error ? error.message : String(error);
+                    this.logger.warn(`${endpoint} failed for ${model.id}: ${detail}`);
                 }
             }
         }
