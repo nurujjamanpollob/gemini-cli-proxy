@@ -10,6 +10,11 @@ import {AntigravityClient} from "./gemini/antigravity-client.js";
 import type {UpstreamClient} from "./gemini/upstream-client.js";
 import {createOpenAIRouter} from "./routes/openai.js";
 import {createAnthropicRouter} from "./routes/anthropic.js";
+import {createChatRouter} from "./routes/chat.js";
+import {ChatSessionStore} from "./chat/store.js";
+import {loadMcpConfig} from "./mcp/config.js";
+import {McpToolRegistry} from "./mcp/tool-registry.js";
+import {getStaticUiDir} from "./utils/runtime-paths.js";
 import {
     DEFAULT_PORT,
     DISABLE_AUTO_MODEL_SWITCH,
@@ -31,6 +36,8 @@ const program = new Command()
     .option("--disable-browser-auth", "Disables browser auth flow and uses code based auth", DISABLE_BROWSER_AUTH)
     .option("--disable-google-search", "Disables native Google Search tool", DISABLE_GOOGLE_SEARCH)
     .option("--disable-auto-model-switch", "Disables auto model switching in case of rate limiting", DISABLE_AUTO_MODEL_SWITCH)
+    .option("--mcp-config <path>", "Path to an MCP config file (env: MCP_CONFIG)")
+    .option("--disable-mcp", "Disables the MCP tool layer and the chat tool loop")
     .parse(process.argv);
 
 const opts = program.opts();
@@ -54,15 +61,34 @@ async function createUpstreamClient(logger: ReturnType<typeof getLogger>): Promi
     return new AntigravityClient(tokens, project);
 }
 
+/** Connects the MCP tool layer; never fatal — tools simply stay unavailable. */
+async function createToolRegistry(logger: ReturnType<typeof getLogger>): Promise<McpToolRegistry> {
+    if (opts.disableMcp) {
+        logger.info("mcp: disabled by --disable-mcp");
+        return McpToolRegistry.empty(logger);
+    }
+
+    const {config, path, error} = loadMcpConfig(opts.mcpConfig);
+    if (error) {
+        logger.warn(`mcp config at ${path} is invalid (${error}); using built-in tools only`);
+    } else if (path) {
+        logger.info(`mcp config: ${path}`);
+    }
+
+    return McpToolRegistry.create(config, logger);
+}
+
 export async function startServer() {
     const logger = getLogger("SERVER", chalk.green);
     logger.info("starting server...");
 
     try {
         const geminiClient = await createUpstreamClient(logger);
+        const registry = await createToolRegistry(logger);
+        const sessionStore = new ChatSessionStore();
 
         const app = express();
-        
+
         // Enable CORS
         app.use(cors());
 
@@ -103,9 +129,15 @@ export async function startServer() {
             }
         });
 
+        const uiDir = getStaticUiDir();
+
         app.get("/", (_req, res) => {
-            res.type("text/plain").send(
+            if (uiDir) {
+                return res.redirect("/ui");
+            }
+            return res.type("text/plain").send(
                 "Available endpoints:\n" +
+                `* Chat UI: http://localhost:${opts.port}/ui\n` +
                 `* OpenAI compatible endpoint: http://localhost:${opts.port}/openai\n` +
                 `* Anthropic compatible endpoint: http://localhost:${opts.port}/anthropic`
             );
@@ -114,15 +146,27 @@ export async function startServer() {
         app.get("/health", (_req, res) => {
             res.status(200).json({status: "ok"});
         });
+
+        // Bundled chat UI (static assets only; API lives under /chat/api).
+        if (uiDir) {
+            app.use("/ui", express.static(uiDir, {index: ["index.html"], extensions: false}));
+        }
+
         const openAIRouter = createOpenAIRouter(geminiClient);
         app.use("/openai", openAIRouter);
 
         const anthropicRouter = createAnthropicRouter(geminiClient);
         app.use("/anthropic", anthropicRouter);
 
+        const chatRouter = createChatRouter({client: geminiClient, registry, store: sessionStore});
+        app.use("/chat", chatRouter);
+
         // 6. Start server
         const server = app.listen(opts.port, () => {
             logger.info("server started");
+            if (uiDir) {
+                logger.info(`Chat UI: http://localhost:${opts.port}/ui`);
+            }
             logger.info(`OpenAI compatible endpoint: http://localhost:${opts.port}/openai`);
             logger.info(`Anthropic compatible endpoint: http://localhost:${opts.port}/anthropic`);
             logger.info("press Ctrl+C to stop the server");
@@ -136,8 +180,12 @@ export async function startServer() {
             
             logger.info(`\n${signal} received. Shutting down gracefully...`);
             server.close(() => {
-                logger.info("Server closed.");
-                process.exit(0);
+                registry.closeAll()
+                    .catch(() => undefined)
+                    .finally(() => {
+                        logger.info("Server closed.");
+                        process.exit(0);
+                    });
             });
         };
 
