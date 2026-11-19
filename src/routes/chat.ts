@@ -11,6 +11,7 @@ import type {McpToolRegistry} from "../mcp/tool-registry.js";
 import {getLogger} from "../utils/logger.js";
 
 import type {ChatSessionStore} from "../chat/store.js";
+import {MAX_TITLE_LENGTH} from "../chat/store.js";
 import {runAgentTurn} from "../chat/agent-loop.js";
 import {SseChannel} from "../chat/events.js";
 import type {ChatRunRequest} from "../chat/types.js";
@@ -31,6 +32,11 @@ function readStringList(value: unknown): string[] | undefined {
     }
     const list = value.filter((item): item is string => typeof item === "string");
     return list.length > 0 ? list : undefined;
+}
+
+/** Narrows an unknown request body to a plain object without throwing. */
+function readRecord(value: unknown): Record<string, unknown> {
+    return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
 }
 
 function parseRunRequest(body: unknown): ChatRunRequest | string {
@@ -74,7 +80,7 @@ export function createChatRouter(deps: ChatRouterDeps): express.Router {
     });
 
     router.post("/api/sessions", (req, res) => {
-        const body = (typeof req.body === "object" && req.body !== null ? req.body : {}) as Record<string, unknown>;
+        const body = readRecord(req.body);
         const model = readString(body.model);
         if (!model) {
             return res.status(400).json({error: "model is required"});
@@ -98,6 +104,43 @@ export function createChatRouter(deps: ChatRouterDeps): express.Router {
             return res.status(404).json({error: "session not found"});
         }
         return res.json({ok: true});
+    });
+
+    /** Renames a session (used by the inline rename in the bundled console). */
+    router.patch("/api/sessions/:id", (req, res) => {
+        const title = readString(readRecord(req.body).title);
+        if (!title) {
+            return res.status(400).json({error: "title is required"});
+        }
+        if (title.length > MAX_TITLE_LENGTH) {
+            return res.status(400).json({error: `title must be at most ${MAX_TITLE_LENGTH} characters`});
+        }
+
+        const session = store.rename(req.params.id, title);
+        if (!session) {
+            return res.status(404).json({error: "session not found"});
+        }
+        return res.json({session});
+    });
+
+    /**
+     * Drops transcript records from `fromIndex` onwards. The console uses this to edit an earlier
+     * message or regenerate the latest answer; the re-sent turn then appends fresh records.
+     */
+    router.post("/api/sessions/:id/rewind", (req, res) => {
+        const raw = readRecord(req.body).fromIndex;
+        const fromIndex = typeof raw === "number" ? Math.trunc(raw) : Number.NaN;
+        if (!Number.isInteger(fromIndex) || fromIndex < 0) {
+            return res.status(400).json({error: "fromIndex must be a non-negative integer"});
+        }
+
+        const session = store.rewindTo(req.params.id, fromIndex);
+        if (!session) {
+            return res.status(404).json({error: "session not found or fromIndex out of range"});
+        }
+
+        logger.info(`rewind session=${req.params.id} keeping ${fromIndex} record(s)`);
+        return res.json({session});
     });
 
     router.get("/api/tools", (_req, res) => {

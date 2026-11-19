@@ -13,6 +13,8 @@ import {getChatDataDir} from "../utils/runtime-paths.js";
 const SAFE_ID = /^[A-Za-z0-9_-]{1,64}$/;
 const MAX_LOADED_SESSIONS = 250;
 export const DEFAULT_TITLE = "New conversation";
+/** Hard cap for a user-supplied session title (the sidebar renders the first ~40 chars). */
+export const MAX_TITLE_LENGTH = 120;
 
 function nowIso(): string {
     return new Date().toISOString();
@@ -125,6 +127,34 @@ export class ChatSessionStore {
         session.updatedAt = nowIso();
         this.persist(session);
         return session;
+    }
+
+    /**
+     * Renames a session. Blank or oversized titles are rejected (undefined) rather than
+     * silently truncated; callers validate shape before hitting the store.
+     */
+    rename(id: string, title: string): ChatSession | undefined {
+        const clean = title.replace(/\s+/g, " ").trim();
+        if (!clean || clean.length > MAX_TITLE_LENGTH) {
+            return undefined;
+        }
+        return this.update(id, (session) => {
+            session.title = clean;
+        });
+    }
+
+    /**
+     * Drops every record from `index` onwards so the caller can re-send that turn.
+     * Returns undefined when the index is not a valid boundary of the transcript.
+     */
+    rewindTo(id: string, index: number): ChatSession | undefined {
+        const session = this.get(id);
+        if (!session || !Number.isInteger(index) || index < 0 || index > session.messages.length) {
+            return undefined;
+        }
+        return this.update(id, (current) => {
+            current.messages.splice(index);
+        });
     }
 
     remove(id: string): boolean {
