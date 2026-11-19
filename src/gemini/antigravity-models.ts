@@ -9,7 +9,7 @@
  */
 import chalk from "chalk";
 
-import { getLogger } from "../utils/logger.js";
+import {getLogger} from "../utils/logger.js";
 import {
     clearCatalogueCache,
     fetchCatalogue,
@@ -30,8 +30,8 @@ import {
 
 const logger = getLogger("AGY-MODELS", chalk.blue);
 
-export type { AntigravityModel, ModelFamily, ResolvedModel, TierRole };
-export { clearCatalogueCache, fetchCatalogue, generationEndpoints, knownCatalogue };
+export type {AntigravityModel, ModelFamily, ResolvedModel, TierRole};
+export {clearCatalogueCache, fetchCatalogue, generationEndpoints, knownCatalogue};
 
 /** Classifies a caller-supplied name into a capability bucket. */
 function roleOf(name: string): TierRole | null {

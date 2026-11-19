@@ -1,4 +1,4 @@
-import { arch, platform } from "node:os";
+import {arch, platform} from "node:os";
 
 /**
  * Wire contract for the Google Antigravity upstream (cloudcode-pa v1internal).

@@ -1,11 +1,11 @@
 import express from "express";
-import { GeminiApiError } from "../gemini/client.js";
-import type { UpstreamClient } from "../gemini/upstream-client.js";
-import { resolveModelInfo } from "../gemini/upstream-client.js";
+import {GeminiApiError} from "../gemini/client.js";
+import type {UpstreamClient} from "../gemini/upstream-client.js";
+import {resolveModelInfo} from "../gemini/upstream-client.js";
 import * as Anthropic from "../types/anthropic.js";
-import { mapAnthropicMessagesRequestToGemini, mapGeminiResponseToAnthropic } from "../gemini/anthropic-mapper.js";
+import {mapAnthropicMessagesRequestToGemini, mapGeminiResponseToAnthropic} from "../gemini/anthropic-mapper.js";
 import * as Gemini from "../types/gemini.js";
-import { getLogger } from "../utils/logger.js";
+import {getLogger} from "../utils/logger.js";
 import chalk from "chalk";
 import crypto from "crypto";
 import * as fs from "node:fs";
@@ -131,7 +131,7 @@ export function createAnthropicRouter(geminiClient: UpstreamClient): express.Rou
                         const errorMessage = error instanceof Error ? error.message : "Unknown stream error";
                         res.write(`event: error\ndata: ${JSON.stringify({
                             type: "error",
-                            error: { type: "api_error", message: errorMessage }
+                            error: {type: "api_error", message: errorMessage}
                         })}\n\n`);
                         res.end();
                     }
@@ -231,7 +231,7 @@ async function streamAnthropicResponse(
     let currentThinkingSignature = "";
     let inputTokens = 0;
     let outputTokens = 0;
-    let cacheReadTokens = 0;
+    const cacheReadTokens = 0;
     let stopReason: "end_turn" | "tool_use" | "max_tokens" | "stop_sequence" = "end_turn";
     let totalContent = "";
     const modelFamily = getModelFamily(originalModel);
@@ -289,7 +289,7 @@ async function streamAnthropicResponse(
             if (currentBlockType !== "thinking") {
                 // Close previous block if any
                 if (currentBlockType !== null) {
-                    writeEvent("content_block_stop", { type: "content_block_stop", index: blockIndex });
+                    writeEvent("content_block_stop", {type: "content_block_stop", index: blockIndex});
                     blockIndex++;
                 }
                 currentBlockType = "thinking";
@@ -297,7 +297,7 @@ async function streamAnthropicResponse(
                 writeEvent("content_block_start", {
                     type: "content_block_start",
                     index: blockIndex,
-                    content_block: { type: "thinking", thinking: "" }
+                    content_block: {type: "thinking", thinking: ""}
                 });
             }
 
@@ -311,7 +311,7 @@ async function streamAnthropicResponse(
             writeEvent("content_block_delta", {
                 type: "content_block_delta",
                 index: blockIndex,
-                delta: { type: "thinking_delta", thinking: delta.content }
+                delta: {type: "thinking_delta", thinking: delta.content}
             });
         }
         // Handle thinking end signal
@@ -321,12 +321,12 @@ async function streamAnthropicResponse(
                 writeEvent("content_block_delta", {
                     type: "content_block_delta",
                     index: blockIndex,
-                    delta: { type: "signature_delta", signature: currentThinkingSignature }
+                    delta: {type: "signature_delta", signature: currentThinkingSignature}
                 });
                 currentThinkingSignature = "";
             }
             if (currentBlockType !== null) {
-                writeEvent("content_block_stop", { type: "content_block_stop", index: blockIndex });
+                writeEvent("content_block_stop", {type: "content_block_stop", index: blockIndex});
                 blockIndex++;
             }
             currentBlockType = null;
@@ -342,11 +342,11 @@ async function streamAnthropicResponse(
                     writeEvent("content_block_delta", {
                         type: "content_block_delta",
                         index: blockIndex,
-                        delta: { type: "signature_delta", signature: currentThinkingSignature }
+                        delta: {type: "signature_delta", signature: currentThinkingSignature}
                     });
                     currentThinkingSignature = "";
                 }
-                writeEvent("content_block_stop", { type: "content_block_stop", index: blockIndex });
+                writeEvent("content_block_stop", {type: "content_block_stop", index: blockIndex});
                 blockIndex++;
             }
 
@@ -356,7 +356,7 @@ async function streamAnthropicResponse(
                 writeEvent("content_block_start", {
                     type: "content_block_start",
                     index: blockIndex,
-                    content_block: { type: "text", text: "" }
+                    content_block: {type: "text", text: ""}
                 });
             }
 
@@ -364,7 +364,7 @@ async function streamAnthropicResponse(
             writeEvent("content_block_delta", {
                 type: "content_block_delta",
                 index: blockIndex,
-                delta: { type: "text_delta", text: delta.content }
+                delta: {type: "text_delta", text: delta.content}
             });
         }
 
@@ -377,12 +377,12 @@ async function streamAnthropicResponse(
                 writeEvent("content_block_delta", {
                     type: "content_block_delta",
                     index: blockIndex,
-                    delta: { type: "signature_delta", signature: currentThinkingSignature }
+                    delta: {type: "signature_delta", signature: currentThinkingSignature}
                 });
                 currentThinkingSignature = "";
             }
             if (currentBlockType !== null) {
-                writeEvent("content_block_stop", { type: "content_block_stop", index: blockIndex });
+                writeEvent("content_block_stop", {type: "content_block_stop", index: blockIndex});
                 blockIndex++;
             }
             currentBlockType = "tool_use";
@@ -423,7 +423,7 @@ async function streamAnthropicResponse(
                     });
                 }
 
-                writeEvent("content_block_stop", { type: "content_block_stop", index: blockIndex });
+                writeEvent("content_block_stop", {type: "content_block_stop", index: blockIndex});
                 blockIndex++;
             }
             currentBlockType = null;
@@ -453,20 +453,20 @@ async function streamAnthropicResponse(
                 model: originalModel,
                 stop_reason: null,
                 stop_sequence: null,
-                usage: { input_tokens: 0, output_tokens: 0 }
+                usage: {input_tokens: 0, output_tokens: 0}
             }
         });
         writeEvent("content_block_start", {
             type: "content_block_start",
             index: 0,
-            content_block: { type: "text", text: "" }
+            content_block: {type: "text", text: ""}
         });
         writeEvent("content_block_delta", {
             type: "content_block_delta",
             index: 0,
-            delta: { type: "text_delta", text: "[No response received - please try again]" }
+            delta: {type: "text_delta", text: "[No response received - please try again]"}
         });
-        writeEvent("content_block_stop", { type: "content_block_stop", index: 0 });
+        writeEvent("content_block_stop", {type: "content_block_stop", index: 0});
     } else {
         // Close any open block
         if (currentBlockType !== null) {
@@ -474,17 +474,17 @@ async function streamAnthropicResponse(
                 writeEvent("content_block_delta", {
                     type: "content_block_delta",
                     index: blockIndex,
-                    delta: { type: "signature_delta", signature: currentThinkingSignature }
+                    delta: {type: "signature_delta", signature: currentThinkingSignature}
                 });
             }
-            writeEvent("content_block_stop", { type: "content_block_stop", index: blockIndex });
+            writeEvent("content_block_stop", {type: "content_block_stop", index: blockIndex});
         }
     }
 
     // Emit message_delta with final usage
     writeEvent("message_delta", {
         type: "message_delta",
-        delta: { stop_reason: stopReason, stop_sequence: null },
+        delta: {stop_reason: stopReason, stop_sequence: null},
         usage: {
             output_tokens: outputTokens,
             cache_read_input_tokens: cacheReadTokens,
@@ -493,7 +493,7 @@ async function streamAnthropicResponse(
     });
 
     // Emit message_stop
-    writeEvent("message_stop", { type: "message_stop" });
+    writeEvent("message_stop", {type: "message_stop"});
 
     // Log the final response
     try {
@@ -501,7 +501,7 @@ async function streamAnthropicResponse(
             id: messageId,
             type: "message",
             role: "assistant",
-            content: [{ type: "text", text: totalContent }],
+            content: [{type: "text", text: totalContent}],
             model: originalModel,
             stop_reason: stopReason,
             usage: {

@@ -1,14 +1,14 @@
 import crypto from "node:crypto";
 
 import * as Gemini from "../types/gemini.js";
-import { MAX_OUTPUT_TOKENS } from "../utils/antigravity-constants.js";
-import type { ResolvedModel } from "./antigravity-models.js";
+import {MAX_OUTPUT_TOKENS} from "../utils/antigravity-constants.js";
+import type {ResolvedModel} from "./antigravity-models.js";
 
 /** Envelope expected by `v1internal:{generateContent,streamGenerateContent}`. */
 export interface AntigravityEnvelope {
     project: string;
     model: string;
-    request: Record<string, unknown> & { sessionId: string };
+    request: Record<string, unknown> & {sessionId: string};
     userAgent: "antigravity";
     requestType: "agent";
     requestId: string;
@@ -39,14 +39,14 @@ function relocateSystemPrompt(request: Record<string, unknown>, body: Gemini.Cha
     delete request.systemInstruction;
 
     const contents = (request.contents as Gemini.ChatMessage[]) ?? [];
-    const part: Gemini.TextPart = { text: `<system-instructions>\n${text}\n</system-instructions>` };
+    const part: Gemini.TextPart = {text: `<system-instructions>\n${text}\n</system-instructions>`};
     const first = contents[0];
     const firstIsToolResult = Boolean(first?.parts?.[0] && "functionResponse" in first.parts[0]);
 
     if (first && first.role === "user" && Array.isArray(first.parts) && !firstIsToolResult) {
         first.parts = [part, ...first.parts];
     } else {
-        request.contents = [{ role: "user", parts: [part] }, ...contents];
+        request.contents = [{role: "user", parts: [part]}, ...contents];
     }
 }
 
@@ -62,9 +62,9 @@ function normalizeContents(contents: unknown): Gemini.ChatMessage[] {
         });
 
         if (parts.length === 0) {
-            parts.push({ text: "." });
+            parts.push({text: "."});
         }
-        return { role: message.role, parts };
+        return {role: message.role, parts};
     });
 }
 
@@ -121,7 +121,7 @@ function normalizeGenerationConfig(
         }
         budget = Math.max(CLAUDE_MIN_THINKING_TOKENS, budget);
 
-        config.thinkingConfig = { include_thoughts: true, thinking_budget: budget };
+        config.thinkingConfig = {include_thoughts: true, thinking_budget: budget};
         const floor = Math.min(budget + THINKING_HEADROOM, MAX_OUTPUT_TOKENS);
         config.maxOutputTokens = Math.min(Math.max(requestedMax ?? floor, floor), MAX_OUTPUT_TOKENS);
         return config;
@@ -138,7 +138,7 @@ function normalizeGenerationConfig(
 
     config.thinkingConfig = {
         includeThoughts: true,
-        ...(budget > 0 ? { thinkingBudget: budget } : {}),
+        ...(budget > 0 ? {thinkingBudget: budget} : {}),
     };
 
     const floor = budget > 0 ? Math.min(budget + THINKING_HEADROOM, MAX_OUTPUT_TOKENS) : clampCeiling(requestedMax, MAX_OUTPUT_TOKENS);
@@ -155,7 +155,7 @@ function normalizeToolConfig(
         return body.toolConfig;
     }
     if (model.family === "claude" && body.tools && body.tools.length > 0) {
-        return { functionCallingConfig: { mode: "AUTO" as never } };
+        return {functionCallingConfig: {mode: "AUTO" as never}};
     }
     return undefined;
 }

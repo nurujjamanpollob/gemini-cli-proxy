@@ -1,7 +1,7 @@
 import * as OpenAI from "../types/openai.js";
 import * as Gemini from "../types/gemini.js";
-import { DEFAULT_TEMPERATURE } from "../utils/constant.js";
-import { mapModelToGemini, mapJsonSchemaToGemini } from "./mapper.js";
+import {DEFAULT_TEMPERATURE} from "../utils/constant.js";
+import {mapModelToGemini, mapJsonSchemaToGemini} from "./mapper.js";
 
 export const mapOpenAIChatCompletionRequestToGemini = (
     project: string,
@@ -33,7 +33,7 @@ export const mapOpenAIChatCompletionRequestToGemini = (
         };
     }
     if (request.tools) {
-        geminiRequest.tools = [{ functionDeclarations: request.tools?.map((tool) => convertOpenAIFunctionToGemini(tool.function)) }];
+        geminiRequest.tools = [{functionDeclarations: request.tools?.map((tool) => convertOpenAIFunctionToGemini(tool.function))}];
     }
     if (request.tool_choice) {
         geminiRequest.toolConfig = mapToolChoiceToToolConfig(request.tool_choice);
@@ -97,12 +97,12 @@ const mapToolChoiceToToolConfig = (toolChoice?: OpenAI.ToolChoice): Gemini.ToolC
         mode = "ANY";
         allowedFunctionNames = [toolChoice.function.name];
     }
-    return { functionCallingConfig: { mode, allowedFunctionNames } };
+    return {functionCallingConfig: {mode, allowedFunctionNames}};
 };
 
 const isSystemMessage = (message: OpenAI.ChatMessage): boolean => message.role === "system" || message.role === "developer";
 
-const SYNTHETIC_THOUGHT_SIGNATURE = 'skip_thought_signature_validator';
+const SYNTHETIC_THOUGHT_SIGNATURE = "skip_thought_signature_validator";
 
 const mapOpenAIMessageToGeminiFormat = (msg: OpenAI.ChatMessage): Gemini.ChatMessage => {
     const role = msg.role === "assistant" ? "model" : "user";
@@ -110,7 +110,7 @@ const mapOpenAIMessageToGeminiFormat = (msg: OpenAI.ChatMessage): Gemini.ChatMes
     if (msg.role === "assistant" && msg.tool_calls && msg.tool_calls.length > 0) {
         const parts: Gemini.Part[] = [];
         if (typeof msg.content === "string" && msg.content.trim()) {
-            parts.push({ text: msg.content });
+            parts.push({text: msg.content});
         }
 
         for (const toolCall of msg.tool_calls) {
@@ -126,13 +126,13 @@ const mapOpenAIMessageToGeminiFormat = (msg: OpenAI.ChatMessage): Gemini.ChatMes
             }
         }
 
-        return { role: "model", parts };
+        return {role: "model", parts};
     }
 
     if (typeof msg.content === "string") {
         return {
             role,
-            parts: [{ text: msg.content }]
+            parts: [{text: msg.content}]
         };
     }
 
@@ -148,25 +148,25 @@ const mapOpenAIMessageToGeminiFormat = (msg: OpenAI.ChatMessage): Gemini.ChatMes
                 if (!text.endsWith("\n")) {
                     text += "\n";
                 }
-                parts.push({ text });
+                parts.push({text});
             } else if (content.type === "image_url" && content.image_url) {
                 const imageUrl = content.image_url.url;
                 const match = imageUrl.match(/^data:(image\/.+);base64,(.+)$/);
                 if (match) {
                     parts.push({
-                        inlineData: { mimeType: match[1], data: match[2] },
+                        inlineData: {mimeType: match[1], data: match[2]},
                     });
                 }
             }
         }
 
-        return { role, parts };
+        return {role, parts};
     }
 
     // Fallback for unexpected content format
     return {
         role,
-        parts: [{ text: String(msg.content) }]
+        parts: [{text: String(msg.content)}]
     };
 };
 
@@ -235,7 +235,7 @@ const thinkingBudgetMap: Record<OpenAI.ReasoningEffort, number> = {
 };
 
 const convertOpenAIFunctionToGemini = (fn: OpenAI.FunctionDeclaration): Gemini.FunctionDeclaration => {
-    const { parameters, ...rest } = fn;
+    const {parameters, ...rest} = fn;
 
     if (!parameters) {
         return fn;

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import {beforeEach, describe, expect, it, vi} from "vitest";
 
 import {
     ANTIGRAVITY_ENDPOINT_DAILY,
@@ -11,7 +11,7 @@ import {
     generationEndpoints,
     knownCatalogue,
 } from "./antigravity-catalogue.js";
-import { resolveModel } from "./antigravity-models.js";
+import {resolveModel} from "./antigravity-models.js";
 
 const PROD = ANTIGRAVITY_ENDPOINT_PROD;
 const DAILY = ANTIGRAVITY_ENDPOINT_DAILY;
@@ -41,7 +41,7 @@ function routeFetch(handlers: Record<string, () => Promise<unknown>>): string[] 
 }
 
 function okResponse(models: Record<string, ModelMeta>): unknown {
-    return { ok: true, status: 200, json: async () => ({ models }) };
+    return {ok: true, status: 200, json: async () => ({models})};
 }
 
 beforeEach(() => {
@@ -53,13 +53,13 @@ describe("fetchCatalogue", () => {
     it("unions ids across both hosts and records endpoint affinity", async () => {
         routeFetch({
             [PROD]: async () => okResponse({
-                "gemini-3-flash": { maxOutputTokens: 65536 },
-                "claude-sonnet-4-6": { displayName: "Claude Sonnet 4.6" },
+                "gemini-3-flash": {maxOutputTokens: 65536},
+                "claude-sonnet-4-6": {displayName: "Claude Sonnet 4.6"},
             }),
             [DAILY]: async () => okResponse({
                 // Same id, weaker metadata: the first host must keep ownership.
                 "gemini-3-flash": {},
-                "gemini-4-hydrogen-sonar": { maxOutputTokens: 65536 },
+                "gemini-4-hydrogen-sonar": {maxOutputTokens: 65536},
             }),
         });
 
@@ -85,8 +85,8 @@ describe("fetchCatalogue", () => {
                 throw new Error("ETIMEDOUT");
             },
             [DAILY]: async () => okResponse({
-                "gemini-3.8-flash-high": { maxOutputTokens: 65536 },
-                "claude-opus-4-6-thinking": { supportsThinking: true },
+                "gemini-3.8-flash-high": {maxOutputTokens: 65536},
+                "claude-opus-4-6-thinking": {supportsThinking: true},
             }),
         });
 
@@ -118,7 +118,7 @@ describe("fetchCatalogue", () => {
             [PROD]: async () => {
                 throw new Error("socket hang up");
             },
-            [DAILY]: async () => ({ ok: false, status: 503, json: async () => ({}) }),
+            [DAILY]: async () => ({ok: false, status: 503, json: async () => ({})}),
         });
 
         await expect(fetchCatalogue("token", "project")).resolves.toBeNull();
@@ -129,8 +129,8 @@ describe("fetchCatalogue", () => {
 
     it("serves the cached catalogue within TTL without refetching", async () => {
         const urls = routeFetch({
-            [PROD]: async () => okResponse({ "gemini-3-flash": {} }),
-            [DAILY]: async () => okResponse({ "gemini-4-hydrogen-sonar": {} }),
+            [PROD]: async () => okResponse({"gemini-3-flash": {}}),
+            [DAILY]: async () => okResponse({"gemini-4-hydrogen-sonar": {}}),
         });
 
         const first = await fetchCatalogue("token", "project");
@@ -145,15 +145,15 @@ describe("fetchCatalogue", () => {
 
 describe("generationEndpoints", () => {
     it("orders hosts proven to serve the id ahead of the rest", () => {
-        expect(generationEndpoints({ endpoints: [DAILY] })).toEqual([DAILY, PROD]);
-        expect(generationEndpoints({ endpoints: [PROD] })).toEqual([PROD, DAILY]);
+        expect(generationEndpoints({endpoints: [DAILY]})).toEqual([DAILY, PROD]);
+        expect(generationEndpoints({endpoints: [PROD]})).toEqual([PROD, DAILY]);
         // Affinity gates eligibility; GENERATE_ENDPOINTS still sets priority order.
-        expect(generationEndpoints({ endpoints: [PROD, DAILY] })).toEqual([DAILY, PROD]);
+        expect(generationEndpoints({endpoints: [PROD, DAILY]})).toEqual([DAILY, PROD]);
     });
 
     it("falls back to every host when affinity is unknown", () => {
         expect(generationEndpoints()).toEqual([...GENERATE_ENDPOINTS]);
-        expect(generationEndpoints({ endpoints: [] })).toEqual([...GENERATE_ENDPOINTS]);
+        expect(generationEndpoints({endpoints: []})).toEqual([...GENERATE_ENDPOINTS]);
     });
 });
 
@@ -161,11 +161,11 @@ describe("resolveModel against a unioned catalogue", () => {
     it("reaches daily-only ids by exact id and routes aliases to capability buckets", async () => {
         routeFetch({
             [PROD]: async () => okResponse({
-                "gemini-3.8-flash-high": { maxOutputTokens: 65536 },
+                "gemini-3.8-flash-high": {maxOutputTokens: 65536},
                 "claude-sonnet-4-6": {},
             }),
             [DAILY]: async () => okResponse({
-                "gemini-4-hydrogen-sonar": { maxOutputTokens: 65536 },
+                "gemini-4-hydrogen-sonar": {maxOutputTokens: 65536},
                 "gemini-3.1-flash-lite": {},
             }),
         });

@@ -13,8 +13,8 @@ import {
     OAUTH_SCOPES,
     OAUTH_TOKEN_URL,
 } from "../utils/antigravity-constants.js";
-import { getLogger, Logger } from "../utils/logger.js";
-import { AntigravityTokenStore } from "./antigravity-token-store.js";
+import {getLogger, Logger} from "../utils/logger.js";
+import {AntigravityTokenStore} from "./antigravity-token-store.js";
 
 const CALLBACK_PATH = "/oauth-callback";
 /** Human sign-in budget; override with ANTIGRAVITY_AUTH_TIMEOUT_SECONDS. */
@@ -29,7 +29,7 @@ interface PkcePair {
 function createPkce(): PkcePair {
     const verifier = crypto.randomBytes(32).toString("base64url");
     const challenge = crypto.createHash("sha256").update(verifier).digest("base64url");
-    return { verifier, challenge };
+    return {verifier, challenge};
 }
 
 function buildAuthUrl(port: number, pkce: PkcePair, state: string): string {
@@ -49,7 +49,7 @@ function buildAuthUrl(port: number, pkce: PkcePair, state: string): string {
 
 async function bindCallbackServer(
     ports: readonly number[],
-): Promise<{ server: http.Server; port: number }> {
+): Promise<{server: http.Server; port: number}> {
     const errors: string[] = [];
     for (const port of ports) {
         const server = http.createServer();
@@ -62,14 +62,14 @@ async function bindCallbackServer(
                 });
                 server.listen(port, "localhost");
             });
-            return { server, port };
+            return {server, port};
         } catch (error) {
             errors.push(`port ${port}: ${(error as Error).message}`);
             server.removeAllListeners();
         }
     }
     throw new Error(
-    `Unable to bind an OAuth callback port. Tried ${ports.join(", ")} (${errors.join("; ")}). ` +
+        `Unable to bind an OAuth callback port. Tried ${ports.join(", ")} (${errors.join("; ")}). ` +
       "Set OAUTH_CALLBACK_PORT or run with --disable-browser-auth and paste the redirect URL.",
     );
 }
@@ -85,9 +85,9 @@ function waitForCallback(server: http.Server, expectedState: string): Promise<st
         server.on("request", (req, res) => {
             const requestUrl = new URL(req.url ?? "", "http://localhost");
             const respond = (status: number, title: string, body: string): void => {
-                res.writeHead(status, { "Content-Type": "text/html; charset=utf-8" });
+                res.writeHead(status, {"Content-Type": "text/html; charset=utf-8"});
                 res.end(
-                    `<html><body style="font-family:system-ui;padding:40px;text-align:center">` +
+                    "<html><body style=\"font-family:system-ui;padding:40px;text-align:center\">" +
             `<h2>${title}</h2><p>${body}</p></body></html>`,
                 );
             };
@@ -130,7 +130,7 @@ async function readCodeFromTerminal(logger: Logger): Promise<string> {
         );
     }
 
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    const rl = readline.createInterface({input: process.stdin, output: process.stdout});
     const answer = await new Promise<string>((resolve) => {
         rl.question("Paste the full redirect URL (or just the code): ", resolve);
     });
@@ -154,10 +154,10 @@ async function exchangeCode(
     code: string,
     verifier: string,
     redirectUri: string,
-): Promise<{ access_token?: string; refresh_token?: string; expires_in?: number }> {
+): Promise<{access_token?: string; refresh_token?: string; expires_in?: number}> {
     const response = await fetch(OAUTH_TOKEN_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        headers: {"Content-Type": "application/x-www-form-urlencoded"},
         body: new URLSearchParams({
             client_id: OAUTH_CLIENT_ID,
             client_secret: OAUTH_CLIENT_SECRET,
@@ -212,7 +212,7 @@ export async function setupAntigravityAuthentication(
         logger.info(buildAuthUrl(OAUTH_CALLBACK_PORTS[0], pkce, state));
         code = await readCodeFromTerminal(logger);
     } else {
-        const { server, port } = await bindCallbackServer(OAUTH_CALLBACK_PORTS);
+        const {server, port} = await bindCallbackServer(OAUTH_CALLBACK_PORTS);
         redirectUri = `http://localhost:${port}${CALLBACK_PATH}`;
         const authUrl = buildAuthUrl(port, pkce, state);
 

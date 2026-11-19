@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 
 import chalk from "chalk";
 
-import type { AntigravityTokenStore } from "../auth/antigravity-token-store.js";
+import type {AntigravityTokenStore} from "../auth/antigravity-token-store.js";
 import * as Gemini from "../types/gemini.js";
 import type * as OpenAI from "../types/openai.js";
 import {
@@ -12,10 +12,10 @@ import {
     antigravityHeaders,
     clientMetadata,
 } from "../utils/antigravity-constants.js";
-import { OPENAI_CHAT_COMPLETION_OBJECT } from "../utils/constant.js";
-import { getLogger, Logger } from "../utils/logger.js";
-import { GeminiApiError } from "./client.js";
-import { buildAntigravityRequest } from "./antigravity-request-builder.js";
+import {OPENAI_CHAT_COMPLETION_OBJECT} from "../utils/constant.js";
+import {getLogger, Logger} from "../utils/logger.js";
+import {GeminiApiError} from "./client.js";
+import {buildAntigravityRequest} from "./antigravity-request-builder.js";
 import {
     fallbackChain,
     fetchCatalogue,
@@ -23,7 +23,7 @@ import {
     resolveModel,
     type AntigravityModel,
 } from "./antigravity-models.js";
-import type { CompletionResult, UpstreamClient, UpstreamModelInfo } from "./upstream-client.js";
+import type {CompletionResult, UpstreamClient, UpstreamModelInfo} from "./upstream-client.js";
 
 type LoosePart = Record<string, unknown>;
 
@@ -39,8 +39,8 @@ interface BackendFrame extends Record<string, unknown> {
 }
 
 interface LoadCodeAssistResponse {
-    cloudaicompanionProject?: string | { id?: string };
-    allowedTiers?: Array<{ id?: string; isDefault?: boolean }>;
+    cloudaicompanionProject?: string | {id?: string};
+    allowedTiers?: Array<{id?: string; isDefault?: boolean}>;
 }
 
 /**
@@ -142,7 +142,7 @@ export class AntigravityClient implements UpstreamClient {
 
         for (let index = 0; index < chain.length; index++) {
             const model = chain[index];
-            const envelope = buildAntigravityRequest({ ...request, project }, model, sessionKey);
+            const envelope = buildAntigravityRequest({...request, project}, model, sessionKey);
 
             // Hosts proven to list this id run first. Production answers 429 (not
             // 404) for ids it never served, which would masquerade as quota
@@ -250,7 +250,7 @@ export class AntigravityClient implements UpstreamClient {
                             yield this.chunk(thinkingEndDelta(), modelId);
                             thinkingInProgress = false;
                         }
-                        const delta: OpenAI.StreamDelta = { content: part.text };
+                        const delta: OpenAI.StreamDelta = {content: part.text};
                         if (firstChunk) {
                             delta.role = "assistant";
                             firstChunk = false;
@@ -306,7 +306,7 @@ export class AntigravityClient implements UpstreamClient {
             object: OPENAI_CHAT_COMPLETION_OBJECT,
             created: this.creationTime,
             model: modelId,
-            choices: [{ index: 0, delta, finish_reason: finishReason, logprobs: null }],
+            choices: [{index: 0, delta, finish_reason: finishReason, logprobs: null}],
             usage: null,
         };
     }
@@ -335,8 +335,8 @@ export class AntigravityClient implements UpstreamClient {
             try {
                 const response = await fetch(`${endpoint}/${API_VERSION}:loadCodeAssist`, {
                     method: "POST",
-                    headers: { Authorization: `Bearer ${token}`, ...antigravityHeaders() },
-                    body: JSON.stringify({ metadata: clientMetadata(), mode: 1 }),
+                    headers: {Authorization: `Bearer ${token}`, ...antigravityHeaders()},
+                    body: JSON.stringify({metadata: clientMetadata(), mode: 1}),
                 });
                 if (!response.ok) {
                     this.logger.debug(`loadCodeAssist at ${endpoint} -> ${response.status}`);
@@ -363,8 +363,8 @@ export class AntigravityClient implements UpstreamClient {
             try {
                 const load = await fetch(`${endpoint}/${API_VERSION}:loadCodeAssist`, {
                     method: "POST",
-                    headers: { Authorization: `Bearer ${token}`, ...antigravityHeaders() },
-                    body: JSON.stringify({ metadata: clientMetadata(), mode: 1 }),
+                    headers: {Authorization: `Bearer ${token}`, ...antigravityHeaders()},
+                    body: JSON.stringify({metadata: clientMetadata(), mode: 1}),
                 });
                 if (!load.ok) {
                     continue;
@@ -379,8 +379,8 @@ export class AntigravityClient implements UpstreamClient {
                 for (let attempt = 0; attempt < 10; attempt++) {
                     const onboard = await fetch(`${endpoint}/${API_VERSION}:onboardUser`, {
                         method: "POST",
-                        headers: { Authorization: `Bearer ${token}`, ...antigravityHeaders() },
-                        body: JSON.stringify({ tierId, metadata: clientMetadata() }),
+                        headers: {Authorization: `Bearer ${token}`, ...antigravityHeaders()},
+                        body: JSON.stringify({tierId, metadata: clientMetadata()}),
                     });
                     if (!onboard.ok) {
                         break;
@@ -401,7 +401,7 @@ export class AntigravityClient implements UpstreamClient {
 }
 
 function thinkingEndDelta(): OpenAI.StreamDelta & Record<string, unknown> {
-    return { content: "", _thinkingEnd: true };
+    return {content: "", _thinkingEnd: true};
 }
 
 /** Yields parsed JSON frames from an SSE byte stream. */
@@ -416,11 +416,11 @@ async function* readSseFrames(body: ReadableStream<Uint8Array> | null): AsyncGen
 
     try {
         while (true) {
-            const { done, value } = await reader.read();
+            const {done, value} = await reader.read();
             if (done) {
                 break;
             }
-            buffer += decoder.decode(value, { stream: true });
+            buffer += decoder.decode(value, {stream: true});
 
             const lines = buffer.split("\n");
             buffer = lines.pop() ?? "";
@@ -436,7 +436,7 @@ async function* readSseFrames(body: ReadableStream<Uint8Array> | null): AsyncGen
                 try {
                     yield JSON.parse(text) as BackendFrame;
                 } catch {
-          // Incomplete frame; the next read completes it.
+                    // Incomplete frame; the next read completes it.
                 }
             }
         }

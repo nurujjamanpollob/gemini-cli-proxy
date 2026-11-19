@@ -7,7 +7,7 @@ import {setupAuthentication} from "./auth/auth.js";
 import {setupAntigravityAuthentication} from "./auth/antigravity-auth.js";
 import {GeminiApiClient} from "./gemini/client.js";
 import {AntigravityClient} from "./gemini/antigravity-client.js";
-import type { UpstreamClient } from "./gemini/upstream-client.js";
+import type {UpstreamClient} from "./gemini/upstream-client.js";
 import {createOpenAIRouter} from "./routes/openai.js";
 import {createAnthropicRouter} from "./routes/anthropic.js";
 import {
@@ -40,7 +40,7 @@ async function createUpstreamClient(logger: ReturnType<typeof getLogger>): Promi
     const project = opts.googleCloudProject ?? process.env.GOOGLE_CLOUD_PROJECT;
 
     if (opts.upstream === "code-assist") {
-        logger.info(`upstream: Google Code Assist (Gemini CLI quota)`);
+        logger.info("upstream: Google Code Assist (Gemini CLI quota)");
         const authClient = await setupAuthentication(opts.disableBrowserAuth ?? false);
         return new GeminiApiClient(
             authClient,
@@ -49,7 +49,7 @@ async function createUpstreamClient(logger: ReturnType<typeof getLogger>): Promi
         );
     }
 
-    logger.info(`upstream: Antigravity (cloudcode-pa entitlement quota)`);
+    logger.info("upstream: Antigravity (cloudcode-pa entitlement quota)");
     const tokens = await setupAntigravityAuthentication(opts.disableBrowserAuth ?? false);
     return new AntigravityClient(tokens, project);
 }

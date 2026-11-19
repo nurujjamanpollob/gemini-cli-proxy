@@ -1,5 +1,5 @@
 import * as Gemini from "../types/gemini.js";
-import type { JsonSchema } from "../types/types.js";
+import type {JsonSchema} from "../types/types.js";
 
 export const mapModelToGemini = (model?: string): string => {
     if (model === undefined) {
@@ -7,7 +7,7 @@ export const mapModelToGemini = (model?: string): string => {
     }
 
     // Strip [1m] or similar suffixes (e.g., gemini-3-pro-high[1m] -> gemini-3-pro-high)
-    let cleanModel = model.replace(/\[\d+m\]$/, "");
+    const cleanModel = model.replace(/\[\d+m\]$/, "");
 
     // Model alias mapping - maps custom names to valid API model names
     const modelAliases: Record<string, string> = {

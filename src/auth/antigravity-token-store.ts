@@ -1,4 +1,4 @@
-import { promises as fs } from "node:fs";
+import {promises as fs} from "node:fs";
 import path from "node:path";
 import os from "node:os";
 
@@ -8,7 +8,7 @@ import {
     OAUTH_TOKEN_URL,
     OAUTH_USERINFO_URL,
 } from "../utils/antigravity-constants.js";
-import { getLogger } from "../utils/logger.js";
+import {getLogger} from "../utils/logger.js";
 import chalk from "chalk";
 
 const CREDENTIAL_FILENAME = "antigravity_oauth_creds.json";
@@ -94,7 +94,7 @@ export class AntigravityTokenStore {
 
     /** Returns a valid access token, refreshing exactly once per expiry window. */
     async getAccessToken(): Promise<string> {
-        const { access_token: accessToken, expiry_date: expiry } = this.credential;
+        const {access_token: accessToken, expiry_date: expiry} = this.credential;
         if (accessToken && (!expiry || expiry - EXPIRY_SKEW_MS > Date.now())) {
             return accessToken;
         }
@@ -125,7 +125,7 @@ export class AntigravityTokenStore {
 
         const response = await fetch(OAUTH_TOKEN_URL, {
             method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            headers: {"Content-Type": "application/x-www-form-urlencoded"},
             body: new URLSearchParams({
                 client_id: OAUTH_CLIENT_ID,
                 client_secret: OAUTH_CLIENT_SECRET,
@@ -164,13 +164,13 @@ export class AntigravityTokenStore {
         const accessToken = await this.getAccessToken();
         try {
             const response = await fetch(OAUTH_USERINFO_URL, {
-                headers: { Authorization: `Bearer ${accessToken}` },
+                headers: {Authorization: `Bearer ${accessToken}`},
             });
             if (!response.ok) {
                 this.logger.warn(`userinfo lookup failed with ${response.status}`);
                 return this.credential.email;
             }
-            const info = (await response.json()) as { email?: string };
+            const info = (await response.json()) as {email?: string};
             if (info.email) {
                 this.setEmail(info.email);
             }
@@ -183,7 +183,7 @@ export class AntigravityTokenStore {
 
     async persist(): Promise<void> {
         const filePath = antigravityCredentialPath();
-        await fs.mkdir(path.dirname(filePath), { recursive: true });
+        await fs.mkdir(path.dirname(filePath), {recursive: true});
         await fs.writeFile(filePath, JSON.stringify(this.credential, null, 2), {
             mode: 0o600,
         });
@@ -191,5 +191,5 @@ export class AntigravityTokenStore {
 }
 
 export async function clearAntigravityCredential(): Promise<void> {
-    await fs.rm(antigravityCredentialPath(), { force: true });
+    await fs.rm(antigravityCredentialPath(), {force: true});
 }

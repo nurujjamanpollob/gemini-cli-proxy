@@ -1,10 +1,10 @@
-import { OAuth2Client } from "google-auth-library";
+import {OAuth2Client} from "google-auth-library";
 import * as readline from "node:readline";
 import * as OpenAI from "../types/openai.js";
 import * as Gemini from "../types/gemini.js";
-import { CODE_ASSIST_API_VERSION, CODE_ASSIST_ENDPOINT, CODE_ASSIST_ENDPOINT_FALLBACKS, OPENAI_CHAT_COMPLETION_OBJECT, MAX_RETRIES } from "../utils/constant.js";
-import { AutoModelSwitchingHelper, type RetryableRequestData } from "./auto-model-switching.js";
-import { getLogger, Logger } from "../utils/logger.js";
+import {CODE_ASSIST_API_VERSION, CODE_ASSIST_ENDPOINT, CODE_ASSIST_ENDPOINT_FALLBACKS, OPENAI_CHAT_COMPLETION_OBJECT, MAX_RETRIES} from "../utils/constant.js";
+import {AutoModelSwitchingHelper, type RetryableRequestData} from "./auto-model-switching.js";
+import {getLogger, Logger} from "../utils/logger.js";
 import chalk from "chalk";
 
 /**
@@ -56,7 +56,7 @@ export class GeminiApiClient {
         }
 
         // Check environment variables first (like gemini-cli)
-        const envProject = process.env['GOOGLE_CLOUD_PROJECT'] || process.env['GOOGLE_CLOUD_PROJECT_ID'];
+        const envProject = process.env["GOOGLE_CLOUD_PROJECT"] || process.env["GOOGLE_CLOUD_PROJECT_ID"];
         if (envProject) {
             this.projectId = envProject;
             return envProject;
@@ -67,9 +67,9 @@ export class GeminiApiClient {
             const loadResponse = (await this.callEndpoint("loadCodeAssist", {
                 cloudaicompanionProject: undefined,
                 metadata: {
-                    ideType: 'IDE_UNSPECIFIED',
-                    platform: 'PLATFORM_UNSPECIFIED',
-                    pluginType: 'GEMINI',
+                    ideType: "IDE_UNSPECIFIED",
+                    platform: "PLATFORM_UNSPECIFIED",
+                    pluginType: "GEMINI",
                     duetProject: undefined
                 },
             })) as Gemini.ProjectDiscoveryResponse;
@@ -88,9 +88,9 @@ export class GeminiApiClient {
                 tierId,
                 cloudaicompanionProject: undefined,
                 metadata: {
-                    ideType: 'IDE_UNSPECIFIED',
-                    platform: 'PLATFORM_UNSPECIFIED',
-                    pluginType: 'GEMINI'
+                    ideType: "IDE_UNSPECIFIED",
+                    platform: "PLATFORM_UNSPECIFIED",
+                    pluginType: "GEMINI"
                 }
             };
 
@@ -126,7 +126,7 @@ export class GeminiApiClient {
     }
 
     private async callEndpoint(method: string, body: Record<string, unknown>): Promise<unknown> {
-        const { token } = await this.authClient.getAccessToken();
+        const {token} = await this.authClient.getAccessToken();
         const response = await fetch(`${CODE_ASSIST_ENDPOINT}/${CODE_ASSIST_API_VERSION}:${method}`,
             {
                 method: "POST",
@@ -157,14 +157,14 @@ export class GeminiApiClient {
         geminiCompletionRequest: Gemini.ChatCompletionRequest,
         isRetry: boolean = false,
     ): Promise<{
-        content: string;
-        tool_calls?: OpenAI.ToolCall[];
-        usage?: {
-            inputTokens: number;
-            outputTokens: number;
-        };
-        _autoSwitchNotification?: string;
-    }> {
+            content: string;
+            tool_calls?: OpenAI.ToolCall[];
+            usage?: {
+                inputTokens: number;
+                outputTokens: number;
+            };
+            _autoSwitchNotification?: string;
+        }> {
         this.logger.debug(`Getting completion for model: ${geminiCompletionRequest.model}`);
         try {
             const chunks: OpenAI.StreamChunk[] = [];
@@ -174,7 +174,7 @@ export class GeminiApiClient {
 
             let content = "";
             const tool_calls: OpenAI.ToolCall[] = [];
-            let usage: { inputTokens: number; outputTokens: number } | undefined;
+            let usage: {inputTokens: number; outputTokens: number} | undefined;
 
             for (const chunk of chunks) {
                 if (chunk.choices[0].delta.content) {
@@ -210,7 +210,7 @@ export class GeminiApiClient {
                     error.statusCode,
                     geminiCompletionRequest,
                     async (model: string, data: RetryableRequestData) => {
-                        const updatedRequest = { ...data, model } as Gemini.ChatCompletionRequest;
+                        const updatedRequest = {...data, model} as Gemini.ChatCompletionRequest;
                         return await this.getCompletion(updatedRequest, isRetry);
                     }
                 ) as Promise<{
@@ -249,7 +249,7 @@ export class GeminiApiClient {
                     error.statusCode,
                     geminiCompletionRequest,
                     async function* (model: string, data: RetryableRequestData) {
-                        const updatedRequest = { ...data, model } as Gemini.ChatCompletionRequest;
+                        const updatedRequest = {...data, model} as Gemini.ChatCompletionRequest;
                         // Create new client instance to reset firstChunk state
                         const fallbackClient = new GeminiApiClient(
                             self.authClient,
@@ -364,7 +364,7 @@ export class GeminiApiClient {
                         errorBody += chunk.toString();
                     }
                     this.logger.error(`API ERROR 404 BODY: ${errorBody}`);
-                    throw new GeminiApiError(`API call failed with status 404: Model or endpoint not found`, 404, errorBody);
+                    throw new GeminiApiError("API call failed with status 404: Model or endpoint not found", 404, errorBody);
                 }
             }
 
@@ -460,7 +460,7 @@ export class GeminiApiClient {
                                             thinkingInProgress = false;
                                         }
 
-                                        const delta: OpenAI.StreamDelta = { content: part.text };
+                                        const delta: OpenAI.StreamDelta = {content: part.text};
                                         if (this.firstChunk) {
                                             delta.role = "assistant";
                                             this.firstChunk = false;
@@ -571,7 +571,7 @@ export class GeminiApiClient {
                 this.logger.warn("Rate limited (429). Parsing reset time...");
 
                 // Try to get retry-after from headers
-                const retryAfter = error.response.headers?.['retry-after'];
+                const retryAfter = error.response.headers?.["retry-after"];
                 let resetMs = 60000; // Default 1 minute
 
                 if (retryAfter) {
@@ -586,17 +586,17 @@ export class GeminiApiClient {
                 try {
                     const errorData = error.response.data;
                     if (errorData) {
-                        if (typeof errorData.on === 'function') {
+                        if (typeof errorData.on === "function") {
                             // Stream
                             const chunks: Buffer[] = [];
                             await new Promise<void>((resolve) => {
-                                errorData.on('data', (d: any) => chunks.push(Buffer.from(d)));
-                                errorData.on('end', () => resolve());
-                                errorData.on('error', () => resolve());
+                                errorData.on("data", (d: any) => chunks.push(Buffer.from(d)));
+                                errorData.on("end", () => resolve());
+                                errorData.on("error", () => resolve());
                                 setTimeout(() => resolve(), 2000);
                             });
-                            errorBody = Buffer.concat(chunks).toString('utf-8');
-                        } else if (typeof errorData === 'string') {
+                            errorBody = Buffer.concat(chunks).toString("utf-8");
+                        } else if (typeof errorData === "string") {
                             errorBody = errorData;
                         }
                     }
@@ -607,9 +607,9 @@ export class GeminiApiClient {
                 if (resetMatch) {
                     const value = parseInt(resetMatch[1], 10);
                     const unit = resetMatch[2].toLowerCase();
-                    if (unit.startsWith('minute')) {
+                    if (unit.startsWith("minute")) {
                         resetMs = value * 60 * 1000;
-                    } else if (unit.startsWith('hour')) {
+                    } else if (unit.startsWith("hour")) {
                         resetMs = value * 60 * 60 * 1000;
                     } else {
                         resetMs = value * 1000;
@@ -635,22 +635,22 @@ export class GeminiApiClient {
                 try {
                     const errorData = error.response.data;
                     if (errorData) {
-                        if (typeof errorData.on === 'function') {
+                        if (typeof errorData.on === "function") {
                             // It's a stream
                             const chunks: Buffer[] = [];
                             try {
                                 const collected = await new Promise<Buffer[]>((resolve, reject) => {
                                     const c: Buffer[] = [];
-                                    errorData.on('data', (d: any) => c.push(Buffer.from(d)));
-                                    errorData.on('end', () => resolve(c));
-                                    errorData.on('error', reject);
+                                    errorData.on("data", (d: any) => c.push(Buffer.from(d)));
+                                    errorData.on("end", () => resolve(c));
+                                    errorData.on("error", reject);
                                     setTimeout(() => resolve(c), 2000);
                                 });
                                 chunks.push(...collected);
                             } catch { /* ignore */ }
 
                             if (chunks.length > 0) {
-                                const errorBody = Buffer.concat(chunks).toString('utf-8');
+                                const errorBody = Buffer.concat(chunks).toString("utf-8");
                                 try {
                                     const parsed = JSON.parse(errorBody);
                                     if (parsed.error) {

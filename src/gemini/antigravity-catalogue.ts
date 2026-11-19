@@ -6,8 +6,8 @@ import {
     PROVISION_ENDPOINTS,
     antigravityHeaders,
 } from "../utils/antigravity-constants.js";
-import { getLogger } from "../utils/logger.js";
-import type { AntigravityModel } from "./antigravity-catalogue-data.js";
+import {getLogger} from "../utils/logger.js";
+import type {AntigravityModel} from "./antigravity-catalogue-data.js";
 import {
     CATALOGUE_TTL_MS,
     SEED_MODEL_IDS,
@@ -47,7 +47,7 @@ async function fetchFromEndpoint(
             Authorization: `Bearer ${accessToken}`,
             ...antigravityHeaders("application/json"),
         },
-        body: JSON.stringify(projectId ? { project: projectId } : {}),
+        body: JSON.stringify(projectId ? {project: projectId} : {}),
         signal: AbortSignal.timeout(CATALOGUE_TIMEOUT_MS),
     });
 
@@ -58,7 +58,7 @@ async function fetchFromEndpoint(
     const payload = (await response.json()) as {
         models?: Record<
             string,
-            { displayName?: string; supportsThinking?: boolean; maxOutputTokens?: number }
+            {displayName?: string; supportsThinking?: boolean; maxOutputTokens?: number}
         >;
     };
 
@@ -79,14 +79,14 @@ async function fetchFromEndpoint(
  * Unions per-host answers into one catalogue. The first host to list an id owns
  * its metadata; later hosts only contribute endpoint affinity.
  */
-function mergeCatalogue(batches: readonly (readonly AntigravityModel[])[]): AntigravityModel[] {
+function mergeCatalogue(batches: ReadonlyArray<readonly AntigravityModel[]>): AntigravityModel[] {
     const merged = new Map<string, AntigravityModel>();
 
     for (const batch of batches) {
         for (const model of batch) {
             const existing = merged.get(model.id);
             if (!existing) {
-                merged.set(model.id, { ...model, endpoints: [...model.endpoints] });
+                merged.set(model.id, {...model, endpoints: [...model.endpoints]});
                 continue;
             }
 
@@ -141,7 +141,7 @@ export async function fetchCatalogue(
         return cache?.models ?? null;
     }
 
-    cache = { models, fetchedAt: Date.now() };
+    cache = {models, fetchedAt: Date.now()};
     logger.debug(`catalogue refreshed with ${models.length} selectable models from ${batches.length} host(s)`);
     return models;
 }
@@ -168,7 +168,7 @@ export function knownCatalogue(): AntigravityModel[] {
  * failure as quota exhaustion.
  */
 export function generationEndpoints(
-    model?: { endpoints?: readonly string[] },
+    model?: {endpoints?: readonly string[]},
 ): string[] {
     const affinity = model?.endpoints ?? [];
     if (affinity.length === 0) {

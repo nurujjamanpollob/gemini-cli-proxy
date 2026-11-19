@@ -1,8 +1,8 @@
 import express from "express";
 import * as OpenAI from "../types/openai.js";
 import {mapOpenAIChatCompletionRequestToGemini} from "../gemini/openai-mapper.js";
-import type { UpstreamClient } from "../gemini/upstream-client.js";
-import { resolveModelInfo } from "../gemini/upstream-client.js";
+import type {UpstreamClient} from "../gemini/upstream-client.js";
+import {resolveModelInfo} from "../gemini/upstream-client.js";
 import {getLogger} from "../utils/logger.js";
 import chalk from "chalk";
 

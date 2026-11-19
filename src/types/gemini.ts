@@ -10,9 +10,9 @@ export enum Model {
 export type ChatCompletionRequestBody = {
     contents: ChatMessage[];
     systemInstruction?: SystemInstruction;
-    tools?: {
+    tools?: Array<{
         functionDeclarations: FunctionDeclaration[] | undefined;
-    }[];
+    }>;
     toolConfig?: ToolConfig;
     generationConfig?: {
         temperature?: number;
@@ -74,10 +74,10 @@ export type TextPart = {
 };
 
 export type Part =
-    | (TextPart & { thoughtSignature?: string; thought_signature?: string; thought?: boolean })
-    | (InlineDataPart & { thoughtSignature?: string; thought_signature?: string })
-    | (FunctionCallPart & { thoughtSignature?: string; thought_signature?: string })
-    | (FunctionResponsePart & { thoughtSignature?: string; thought_signature?: string });
+    | (TextPart & {thoughtSignature?: string; thought_signature?: string; thought?: boolean})
+    | (InlineDataPart & {thoughtSignature?: string; thought_signature?: string})
+    | (FunctionCallPart & {thoughtSignature?: string; thought_signature?: string})
+    | (FunctionResponsePart & {thoughtSignature?: string; thought_signature?: string});
 
 export type ThinkingConfig = {
     thinkingBudget?: number;
