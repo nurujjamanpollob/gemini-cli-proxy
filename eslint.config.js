@@ -61,4 +61,27 @@ export default tseslint.config(
             "@stylistic/semi": "error",
         },
     },
+    {
+        files: ["public/**/*.js"],
+        languageOptions: {
+            ecmaVersion: 2023,
+            sourceType: "module",
+            globals: {
+                AbortController: "readonly",
+                CustomEvent: "readonly",
+                Event: "readonly",
+                HTMLElement: "readonly",
+                TextDecoder: "readonly",
+                URLSearchParams: "readonly",
+                clearTimeout: "readonly",
+                console: "readonly",
+                document: "readonly",
+                fetch: "readonly",
+                localStorage: "readonly",
+                navigator: "readonly",
+                setTimeout: "readonly",
+                window: "readonly",
+            },
+        },
+    },
 );
