@@ -1,0 +1,61 @@
+functions.txt — exported surface of the chat + MCP layers (path :: symbol — purpose)
+
+src/chat/types.ts
+  :: ChatRole, TraceStatus                 union types ("user"|"assistant", "running"|"done"|"error")
+  :: ToolTrace                             one MCP invocation rendered in an assistant turn (id, toolId, serverId, name, arguments, status, signature?, output?, error?, startedAt, endedAt?)
+  :: ChatMessageRecord                     persisted message (content, thought?, traces?)
+  :: ChatSession                           session with messages[]
+  :: ChatSessionSummary                    sidebar row (id, title, messageCount, updatedAt)
+  :: ChatStreamEvent                      SSE contract: session|round|thinking_start|thinking_chunk|token|tool_start|tool_end|message|usage|error|done
+
+src/chat/store.ts
+  :: newId()                               crypto.randomUUID wrapper
+  :: ChatSessionStore                      in-memory sessions + debounced atomic write to data/sessions.json (create/list/get/patch/delete/append)
+
+src/chat/history.ts
+  :: historyToOpenAiMessages(records)      persisted records -> OpenAI messages (assistant traces replay as tool_calls + role:"tool" results, signatures restored)
+  :: trimHistory(messages, limit?)         head-trim preserving the leading user turn
+  :: stringifyArguments(value)             safe JSON.stringify for replayed tool arguments
+
+src/chat/agent-loop.ts
+  :: DEFAULT_MAX_TOOL_ROUNDS               6 (clamped 1..12 by maxToolRounds)
+  :: runAgentTurn(deps, params, emit, signal?)  multi-round loop: map -> stream -> execute tools -> REPLAY assistant tool_calls + results -> final text; persists the assistant record
+  :: executeToolCall(registry, call, emit, signal?) registry lookup ("server__tool"), runs tool, emits tool_start/tool_end once
+
+src/mcp/types.ts
+  :: McpServerConfig / McpTransport        stdio | http | streamable-http | inprocess + filters/timeoutMs
+  :: ResolvedMcpConfig, McpToolInfo, LoadedMcpFile, McpLoggerFactory
+
+src/mcp/config.ts
+  :: resolveConfigPath(explicit?)          --mcp-config -> PROXY_MCP_CONFIG -> ./mcp.config.json -> ~/.gemini/mcp.config.json
+  :: loadMcpConfig(path, log)              read + validate JSON (never throws on missing file)
+  :: normalizeConfig(raw, log)             drop invalid servers, normalise transports/filters/timeouts
+
+src/mcp/expression.ts
+  :: evaluateExpression(source)            shunting-yard evaluator: + - * / % ^, parentheses, unary +/-, constants pi/e/tau, functions abs sqrt cbrt floor ceil round sin cos tan asin acos atan exp log log10 log2 pow min max atan2; no eval
+
+src/mcp/builtin-tools.ts
+  :: createBuiltinServer()                 in-process "core" server: time_now, calculate, text_stats (sha256 digest)
+
+src/mcp/registry.ts
+  :: McpToolRegistry.empty(logger?)        registry with builtin tools only
+  :: McpToolRegistry.connect(config, log)  connect every enabled server, pool tools as `server__tool`
+  :: #listTools() / #openAiTools(allowedIds?) / #get(prefixedId) / #call(id, args, signal?) / #closeAll()
+
+src/routes/chat.ts
+  :: createChatRouter(deps)                GET /api/tools · GET|POST /api/sessions · GET|PATCH|DELETE /api/sessions/:id · POST /api/stream (SSE; aborts on res close when !res.writableEnded)
+
+src/utils/runtime-paths.ts
+  :: getStaticUiDir()                      absolute path to public/chat for src/ or dist/ layouts (null when absent)
+
+public/chat/js/api.js
+  :: getJson(path) · postJson(path, payload) · streamChat(payload, onEvent, signal)   SSE frame parser included
+
+public/chat/js/markdown.js
+  :: escapeHtml(value) · renderMarkdown(source)   XSS-safe markdown (fenced blocks never parsed inline)
+
+public/chat/js/render.js
+  :: el(spec) · MessageView · sessionItem(...)    DOM builders for thread rows, tool cards, sidebar
+
+public/chat/js/app.js
+  :: init()                                loads sessions/models/tools, wires composer, prefs in localStorage ("proxy-console:prefs")

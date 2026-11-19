@@ -28,6 +28,8 @@ Gemini, Claude and gpt-oss models through one local server — no API keys, no b
 | 🌊 **Streaming** | SSE on `/openai/chat/completions` and `/anthropic/v1/messages`, with usage in the final frame |
 | 🤔 **Thinking tiers** | `-thinking` / high-reasoning models pass through; `[Nm]` budget suffix supported on the OpenAI surface |
 | 🔐 **OAuth PKCE, cached** | Browser consent once; tokens persisted `0600` and refreshed automatically per upstream |
+| 💬 **Chat console** | Dependency-free web UI at `/ui`: streaming answers, reasoning, tool cards, persistent sessions |
+| 🧰 **MCP tools** | Model Context Protocol client layer — builtin tools plus any number of stdio or HTTP MCP servers |
 
 ---
 
@@ -96,6 +98,91 @@ localhost or put your own auth in front before exposing it.
 
 ---
 
+## 💬 Chat console (`/ui`)
+
+Open `http://localhost:8787/ui` after starting the proxy. Static assets only — no build step, no
+framework, no external CDN.
+
+- **Sessions** persist to `data/sessions.json` (gitignored) and survive restarts; rename or delete
+  them from the sidebar.
+- **Streaming** uses one SSE event per protocol message: `session`, `round`, `thinking_start`,
+  `thinking_chunk`, `token`, `tool_start`, `tool_end`, `message`, `usage`, `error`, `done`.
+- **Reasoning** from `-thinking` models renders in a collapsible block above the answer.
+- **Tool activity** appears as cards with arguments, output, duration and error state; the model's
+  final answer arrives only after every tool round settles.
+- **Controls**: model picker (live catalogue), per-tool toggles, system prompt editor, Stop button,
+  `Ctrl+Enter` to send.
+
+API used by the console (same-origin, no auth):
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/chat/api/tools` | connected MCP servers and exposed tool ids |
+| `GET` | `/chat/api/sessions` | session summaries |
+| `POST` | `/chat/api/sessions` | create a session |
+| `GET` · `PATCH` · `DELETE` | `/chat/api/sessions/:id` | read / rename / delete one session |
+| `POST` | `/chat/api/stream` | run a turn (SSE) |
+
+```bash
+curl -N localhost:8787/chat/api/stream \
+  -H 'content-type: application/json' \
+  -d '{"message":"Use the calculate tool for (17+28)*3","tools":["core__calculate"]}'
+```
+
+---
+
+## 🧰 MCP tools
+
+The proxy is an **MCP client**: it connects to configured servers at startup, pools their tools and
+lets the upstream model call them mid-conversation. Nothing else in the request path changes.
+
+**Config discovery order** (first hit wins; a missing file only logs a warning):
+
+1. `--mcp-config <path>`
+2. `PROXY_MCP_CONFIG` environment variable
+3. `./mcp.config.json`
+4. `~/.gemini/mcp.config.json`
+
+```bash
+cp mcp.config.example.json mcp.config.json   # then edit
+```
+
+```jsonc
+{
+  "servers": {
+    // stdio: the proxy spawns and owns the process
+    "filesystem": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+      "timeoutMs": 30000
+    },
+    // http / streamable-http: connect to an already running server
+    "search": {
+      "type": "http",
+      "url": "http://127.0.0.1:3845/mcp",
+      "headers": {"authorization": "Bearer ${SEARCH_TOKEN}"}
+    }
+  }
+}
+```
+
+| Field | Applies to | Notes |
+|-------|-----------|-------|
+| `type` | all | `stdio` (default), `http`, `streamable-http`; `inprocess` is reserved for builtins |
+| `command`, `args`, `env`, `cwd` | stdio | `${VAR}` expands from the proxy's environment |
+| `url`, `headers` | http | same expansion, applied to header values |
+| `include`, `exclude` | all | filter by raw tool name; `include` wins over `exclude` |
+| `disabled` | all | skip the server entirely |
+| `timeoutMs` | all | per-call deadline (default 60s) |
+
+A builtin `core` server (in-process, no subprocess) is always registered: `core__time_now`,
+`core__calculate`, `core__text_stats`. Tools are exposed to models as `server__tool`; the chat
+console lists every connected server and tool with its state.
+
+> **Security**: stdio servers run with the proxy's privileges and can be given any environment
+> variable, so review `command`/`args` before enabling a third-party server. `${VAR}` expansion
+> reads the *proxy's* environment — pass secrets explicitly rather than exporting them broadly.
 ## 🤖 Models
 
 Ask the server, don't trust any README (including this one) — the backend rewrites its ids between
@@ -287,9 +374,13 @@ src/
 │   ├── antigravity-request-builder.ts# envelope construction, thinking-budget reconciliation
 │   ├── mapper.ts / openai-mapper.ts / anthropic-mapper.ts
 │   └── upstream-client.ts            # shared client contract both upstreams implement
-├── routes/                           # openai.ts, anthropic.ts
+├── chat/                             # agent loop, session store/history, SSE event types
+├── mcp/                              # config loader, expression parser, builtin tools, tool registry
+├── routes/                           # openai.ts, anthropic.ts, chat.ts (console API)
 ├── types/                            # gemini.ts, openai.ts
-└── utils/                            # constant.ts, antigravity-constants.ts, logger.ts, paths.ts
+└── utils/                            # constant.ts, antigravity-constants.ts, logger.ts, paths.ts, runtime-paths.ts
+
+public/chat/                          # console UI: index.html, css/, js/{api,markdown,render,app}.js
 ```
 
 ### Known issues

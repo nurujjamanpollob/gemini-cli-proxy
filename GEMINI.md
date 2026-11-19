@@ -22,6 +22,16 @@
 
 This is a proxy server that provides OpenAI and Anthropic Claude-compatible APIs backed by Google's Gemini models through the Code Assist endpoint.
 
+Two newer subsystems live alongside the two API surfaces:
+
+- **Chat console + agent loop** (`/ui`, `/chat/api/*`, `src/chat/`, `public/chat/`) — persistent
+  sessions and multi-round tool calling streamed as typed SSE events.
+- **MCP client layer** (`src/mcp/`, config in `mcp.config.json`) — builtin `core` tools plus any
+  stdio/HTTP MCP servers, exposed to models as `server__tool`.
+
+`agent.md` records current invariants (notably tool-call replay and call-id correlation) and
+`functions.txt` indexes the exported surface of those layers. Read both before editing them.
+
 ### Core Components
 
 **Main Server (`src/index.ts`)**
