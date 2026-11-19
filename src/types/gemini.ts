@@ -53,6 +53,8 @@ export type InlineDataPart = {
 };
 
 export type FunctionCall = {
+    /** Provider-assigned call id; required to correlate replayed calls with their responses. */
+    id?: string;
     name: string;
     args: object;
 };
@@ -63,6 +65,8 @@ export type FunctionCallPart = {
 
 export type FunctionResponsePart = {
     functionResponse: {
+        /** Must match the `id` of the function call being answered. */
+        id?: string;
         name: string;
         response: object;
     };

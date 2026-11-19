@@ -115,13 +115,15 @@ const mapOpenAIMessageToGeminiFormat = (msg: OpenAI.ChatMessage): Gemini.ChatMes
 
         for (const toolCall of msg.tool_calls) {
             if (toolCall.type === "function") {
+                const signature = toolCall._thoughtSignature || SYNTHETIC_THOUGHT_SIGNATURE;
                 parts.push({
                     functionCall: {
+                        id: toolCall.id,
                         name: toolCall.function.name,
                         args: JSON.parse(toolCall.function.arguments)
                     },
-                    thoughtSignature: SYNTHETIC_THOUGHT_SIGNATURE,
-                    thought_signature: SYNTHETIC_THOUGHT_SIGNATURE
+                    thoughtSignature: signature,
+                    thought_signature: signature
                 });
             }
         }
@@ -189,6 +191,7 @@ const mapOpenAIMessagesToGeminiFormat = (messages: OpenAI.ChatMessage[]): Gemini
 
             currentToolParts.push({
                 functionResponse: {
+                    id: msg.tool_call_id,
                     name: originalToolCall?.function.name ?? "unknown",
                     response: {
                         result: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content)

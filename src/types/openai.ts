@@ -40,6 +40,8 @@ export type ToolCall = {
         name: string;
         arguments: string;
     };
+    /** Upstream reasoning signature that must be echoed back with this call. */
+    _thoughtSignature?: string;
 };
 
 export type ChatMessage = {

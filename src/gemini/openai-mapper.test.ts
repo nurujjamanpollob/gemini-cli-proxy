@@ -473,6 +473,7 @@ describe("mapOpenAIChatCompletionRequestToGemini", () => {
         expect(result.request.contents[0].parts[0]).toEqual({text: "I'll check the weather for you."});
         expect(result.request.contents[0].parts[1]).toEqual({
             functionCall: {
+                id: "call_123",
                 name: "get_weather",
                 args: {location: "New York"}
             },
@@ -516,6 +517,7 @@ describe("mapOpenAIChatCompletionRequestToGemini", () => {
         expect(result.request.contents[1].role).toBe("user");
         expect(result.request.contents[1].parts[0]).toEqual({
             functionResponse: {
+                id: "call_123",
                 name: "get_weather",
                 response: {
                     result: "The weather in New York is sunny, 25°C"
@@ -645,6 +647,7 @@ describe("OpenAI message mapping functions", () => {
         expect(result.request.contents[0].role).toBe("user");
         expect(result.request.contents[0].parts[0]).toEqual({
             functionResponse: {
+                id: "call_123",
                 name: "unknown",
                 response: {
                     result: "Tool response without context"
@@ -684,6 +687,7 @@ describe("OpenAI message mapping functions", () => {
 
         expect(result.request.contents[1].parts[0]).toEqual({
             functionResponse: {
+                id: "call_123",
                 name: "get_data",
                 response: {
                     result: "{\"data\":\"complex object\"}"
@@ -720,6 +724,7 @@ describe("OpenAI message mapping functions", () => {
         expect(result.request.contents[0].parts).toHaveLength(1);
         expect(result.request.contents[0].parts[0]).toEqual({
             functionCall: {
+                id: "call_123",
                 name: "calculate",
                 args: {expression: "2+2"}
             },
@@ -816,6 +821,7 @@ describe("OpenAI message mapping functions", () => {
         expect(result.request.contents[0].parts[0]).toEqual({text: "I'll call multiple functions for you."});
         expect(result.request.contents[0].parts[1]).toEqual({
             functionCall: {
+                id: "call_1",
                 name: "function_1",
                 args: {param1: "value1"}
             },
@@ -824,6 +830,7 @@ describe("OpenAI message mapping functions", () => {
         });
         expect(result.request.contents[0].parts[2]).toEqual({
             functionCall: {
+                id: "call_2",
                 name: "function_2",
                 args: {param2: "value2"}
             },
