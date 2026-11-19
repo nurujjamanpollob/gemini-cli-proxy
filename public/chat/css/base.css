@@ -120,7 +120,24 @@ body {
 .session-item[data-active="true"] { background: var(--bg-elev-2); border-color: var(--line-strong); color: var(--text); }
 .session-item .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .session-item .meta { font-family: var(--mono); font-size: 10px; color: var(--text-faint); }
-.session-item .kill {
+.session-row { position: relative; display: flex; flex-direction: column; }
+/* Reserved gutter so long titles never sit under the row actions. */
+.session-item { padding-right: 58px; }
+
+.row-actions {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity 0.14s ease;
+}
+.session-row:hover .row-actions,
+.session-row:focus-within .row-actions { opacity: 1; }
+
+.row-actions .kill {
     border: 0;
     background: transparent;
     color: var(--text-faint);
@@ -130,7 +147,55 @@ body {
     font-size: 14px;
     line-height: 1;
 }
-.session-item .kill:hover { color: var(--danger); background: rgba(251, 113, 133, 0.1); }
+.row-actions .kill:hover { color: var(--danger); background: rgba(251, 113, 133, 0.1); }
+.row-actions .kill.rename:hover { color: var(--accent); background: rgba(94, 234, 212, 0.1); }
+
+/* Touch devices have no hover state, so the actions stay visible there. */
+@media (hover: none) {
+    .row-actions { opacity: 1; }
+}
+.section-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.section-count { font-family: var(--mono); font-size: 10px; color: var(--text-faint); }
+.session-filter {
+    width: 100%;
+    margin-bottom: 8px;
+    padding: 7px 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.02);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 12.5px;
+    outline: none;
+}
+.session-filter:focus { border-color: rgba(94, 234, 212, 0.4); }
+.session-filter::placeholder { color: var(--text-faint); }
+.rename-form {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px 4px 9px;
+    border: 1px solid rgba(94, 234, 212, 0.35);
+    border-radius: var(--radius-sm);
+    background: var(--bg-elev-2);
+}
+.rename-input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13px;
+    outline: none;
+}
+.btn-tiny {
+    padding: 3px 8px;
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border-radius: 6px;
+}
 
 .sidebar-foot { border-top: 1px solid var(--line); padding-top: 12px; display: flex; flex-direction: column; gap: 8px; }
 .status-row { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 11px; color: var(--text-dim); }

@@ -85,15 +85,19 @@ public/chat/js/render.js
   :: el(tag, props, children)               DOM builder
   :: MessageView                            one turn: reasoning block, markdown bubble, tool cards, usage; enableActions()/setRegenerateEnabled() drive the copy/edit/regenerate row
   :: ToolCard                               collapsible MCP invocation card (state, duration, arguments, result)
-  :: sessionItem(session, {active, onOpen, onDelete})
+  :: sessionItem(session, {active, onOpen, onDelete, onRename})   sidebar row: open / inline rename (Enter commits, Esc aborts) / delete
 
 public/chat/js/thread.js
   :: Thread({container, emptyNode})         owns rendered turns; load(records)/beginTurn(text, model)/lastAssistantView()/exchangeFor(view)/syncRecordCount(n); assigns MessageView.recordIndex
+
+public/chat/js/time.js
+  :: formatRelative(iso)                    compact age for list rows ("now", "5m", "3h", "2d", then "Mar 4")
 
 public/chat/js/toast.js
   :: showToast(message, tone)               transient info|success|error pill (aria-live layer)
 
 public/chat/js/app.js
-  :: init()                                 loads sessions/models/tools, wires composer, drawers, shortcuts and prefs in localStorage ("proxy-console:prefs")
+  :: init()                                 loads sessions/models/tools, opens the #session=<id> deep link, wires composer, drawers, shortcuts and prefs in localStorage ("proxy-console:prefs")
+  :: renderSessions() · commitRename(id, title) · syncHash(id) · hashSessionId()   sidebar filter, inline rename, deep-link sync
   :: sendMessage(text) · resendFrom(index, text) · regenerate() · beginRewindDraft(view)   edit/regenerate = rewind then re-send
   :: buildCommands()                        palette source: sessions, models, reasoning effort, panels, tool toggles, turn actions

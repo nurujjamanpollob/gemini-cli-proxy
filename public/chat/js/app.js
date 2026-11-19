@@ -1,6 +1,6 @@
 /* Proxy Console — application wiring: sessions, models, tools, streaming and turn actions. */
 
-import {deleteJson, getJson, rewindSession, streamChat} from "./api.js";
+import {deleteJson, getJson, renameSession, rewindSession, streamChat} from "./api.js";
 import {createPalette} from "./palette.js";
 import {el, sessionItem} from "./render.js";
 import {Thread} from "./thread.js";
@@ -22,6 +22,8 @@ const state = {
     enabled: new Set(),
     running: false,
     controller: null,
+    /** Sidebar filter text (client-side title match). */
+    filter: "",
     /** Persisted record index of the user message being edited; send rewinds to it. */
     pendingRewind: null,
 };
@@ -32,6 +34,8 @@ const dom = {
     thread: $("thread"),
     welcome: $("welcome"),
     sessions: $("sessions"),
+    sessionFilter: $("session-filter"),
+    sessionCount: $("session-count"),
     model: $("model"),
     effort: $("effort"),
     temperature: $("temperature"),
@@ -125,11 +129,33 @@ async function refreshSessions() {
 }
 
 function renderSessions() {
+    const needle = state.filter.trim().toLowerCase();
+    const matches = needle
+        ? state.sessions.filter((session) => (session.title ?? "").toLowerCase().includes(needle))
+        : state.sessions;
+
+    dom.sessionCount.textContent = needle ? `${matches.length}/${state.sessions.length}` : String(state.sessions.length);
     dom.sessions.replaceChildren(
-        ...state.sessions.map((session) =>
-            sessionItem(session, {active: session.id === state.sessionId, onOpen: openSession, onDelete: deleteSession}),
+        ...matches.map((session) =>
+            sessionItem(session, {
+                active: session.id === state.sessionId,
+                onOpen: openSession,
+                onDelete: deleteSession,
+                onRename: commitRename,
+            }),
         ),
     );
+}
+
+/** Renames through the API so the sidebar, the stored file and the deep link stay in agreement. */
+async function commitRename(id, title) {
+    try {
+        await renameSession(id, title);
+        await refreshSessions();
+        showToast("session renamed", "success");
+    } catch (error) {
+        showToast(`rename failed: ${error.message}`, "error");
+    }
 }
 
 async function openSession(id) {
@@ -148,6 +174,7 @@ async function openSession(id) {
         renderSessions();
         refreshRegenerateAffordances();
         scrollToBottom();
+        syncHash(id);
     } catch (error) {
         showToast(`could not open session: ${error.message}`, "error");
     }
@@ -160,6 +187,7 @@ async function deleteSession(id) {
             state.sessionId = null;
             clearPendingRewind();
             clearThread();
+            syncHash(null);
         }
         await refreshSessions();
         showToast("session deleted", "success");
@@ -174,7 +202,19 @@ function startNewConversation() {
     clearPendingRewind();
     clearThread();
     renderSessions();
+    syncHash(null);
     dom.input.focus();
+}
+
+/** Deep link: #session=<id> survives reloads and makes a conversation row shareable. */
+function hashSessionId() {
+    const match = /^#session=([A-Za-z0-9_-]{1,64})$/.exec(location.hash);
+    return match ? match[1] : null;
+}
+
+function syncHash(id) {
+    const base = `${location.pathname}${location.search}`;
+    history.replaceState(null, "", id ? `${base}#session=${id}` : base);
 }
 
 /* ---------------- models + tools ---------------- */
@@ -359,6 +399,7 @@ function handleEvent(event, view) {
     switch (event.type) {
         case "session":
             state.sessionId = event.sessionId;
+            syncHash(event.sessionId);
             renderSessions();
             break;
         case "token":
@@ -508,6 +549,17 @@ function wireEvents() {
     });
     dom.input.addEventListener("input", autoGrow);
 
+    dom.sessionFilter.addEventListener("input", () => {
+        state.filter = dom.sessionFilter.value;
+        renderSessions();
+    });
+
+    // Back/forward navigation or a pasted link reopens the linked conversation.
+    window.addEventListener("hashchange", () => {
+        const id = hashSessionId();
+        if (id && id !== state.sessionId) openSession(id);
+    });
+
     dom.stop.addEventListener("click", () => state.controller?.abort());
     dom.newChat.addEventListener("click", startNewConversation);
     dom.rewindCancel.addEventListener("click", () => {
@@ -589,6 +641,9 @@ async function init() {
     for (const result of results) {
         if (result.status === "rejected") console.error(result.reason);
     }
+
+    const linked = hashSessionId();
+    if (linked) await openSession(linked);
 
     await pingHealth();
     setInterval(() => pingHealth(), HEALTH_POLL_MS);

@@ -48,7 +48,11 @@
         </button>
 
         <nav class="session-scroll" aria-label="Conversations">
-          <p class="section-label">Sessions</p>
+          <div class="section-row">
+            <p class="section-label">Sessions</p>
+            <span class="section-count" id="session-count"></span>
+          </div>
+          <input class="session-filter" id="session-filter" type="search" placeholder="Filter sessions" aria-label="Filter sessions" autocomplete="off">
           <ul class="sessions" id="sessions"></ul>
         </nav>
 

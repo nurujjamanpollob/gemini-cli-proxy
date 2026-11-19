@@ -1,6 +1,7 @@
 /* DOM builders for the conversation surface. */
 
 import {renderMarkdown} from "./markdown.js";
+import {formatRelative} from "./time.js";
 
 export function el(tag, props = {}, children = []) {
     const node = document.createElement(tag);
@@ -187,30 +188,98 @@ export class ToolCard {
     }
 }
 
-export function sessionItem(session, {active, onOpen, onDelete}) {
-    return el("li", {}, [
-        el(
-            "button",
-            {
-                class: "session-item",
-                type: "button",
-                dataset: {active: String(active)},
-                onclick: () => onOpen(session.id),
-            },
-            [
-                el("span", {class: "title", text: session.title}),
-                el("span", {class: "meta", text: String(session.messageCount ?? 0)}),
-                el("button", {
-                    class: "kill",
-                    type: "button",
-                    title: "Delete session",
-                    onclick: (event) => {
-                        event.stopPropagation();
-                        onDelete(session.id);
-                    },
-                    text: "×",
-                }),
-            ],
-        ),
+/** Mirrors MAX_TITLE_LENGTH in src/chat/store.ts — the server rejects longer titles. */
+const MAX_TITLE_LENGTH = 120;
+
+/**
+ * Sidebar row for one session: open it, rename it inline (Enter commits, Escape aborts) or delete it.
+ * Action buttons are siblings of the open button rather than descendants, so the markup stays valid.
+ */
+export function sessionItem(session, {active, onOpen, onDelete, onRename}) {
+    const age = `${session.messageCount ?? 0} · ${formatRelative(session.updatedAt)}`;
+
+    const openButton = el(
+        "button",
+        {
+            class: "session-item",
+            type: "button",
+            dataset: {active: String(active)},
+            onclick: () => onOpen(session.id),
+        },
+        [
+            el("span", {class: "title", text: session.title}),
+            el("span", {class: "meta", text: age}),
+        ],
+    );
+
+    const renameButton = el("button", {
+        class: "kill rename",
+        type: "button",
+        title: "Rename session",
+        "aria-label": `Rename “${session.title}”`,
+        onclick: enterRename,
+        text: "✎",
+    });
+
+    const deleteButton = el("button", {
+        class: "kill",
+        type: "button",
+        title: "Delete session",
+        "aria-label": `Delete “${session.title}”`,
+        onclick: () => onDelete(session.id),
+        text: "×",
+    });
+    const actions = el("span", {class: "row-actions"}, [renameButton, deleteButton]);
+    const input = el("input", {
+        class: "rename-input",
+        type: "text",
+        value: session.title,
+        maxlength: String(MAX_TITLE_LENGTH),
+        "aria-label": `New title for “${session.title}”`,
+    });
+
+    const form = el("div", {class: "rename-form", hidden: true}, [
+        input,
+        el("button", {class: "btn btn-tiny", type: "button", text: "save", onclick: () => commit()}),
+        el("button", {class: "btn btn-tiny", type: "button", text: "esc", onclick: () => exitRename()}),
+    ]);
+
+    function enterRename() {
+        openButton.hidden = true;
+        actions.hidden = true;
+        form.hidden = false;
+        input.focus();
+        input.select();
+    }
+
+    function exitRename() {
+        form.hidden = true;
+        openButton.hidden = false;
+        actions.hidden = false;
+    }
+
+    function commit() {
+        const title = input.value.trim();
+        exitRename();
+        if (!title || title === session.title) return;
+        Promise.resolve(onRename(session.id, title)).catch(() => undefined);
+    }
+
+    input.addEventListener("keydown", (event) => {
+        // Keep typing isolated: global shortcuts must not fire while a title is being edited.
+        event.stopPropagation();
+        if (event.key === "Enter") {
+            event.preventDefault();
+            commit();
+        } else if (event.key === "Escape") {
+            event.preventDefault();
+            exitRename();
+        }
+    });
+
+    return el("li", {class: "session-row"}, [
+        openButton,
+        actions,
+        form,
     ]);
 }

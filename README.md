@@ -108,6 +108,8 @@ framework, no external CDN.
   them from the sidebar; opening one replays its full transcript including tool traces.
 - **Turn actions** on every message: copy as text, edit an earlier prompt (rewinds the transcript to
   that point before sending), or regenerate the newest answer.
+- **Sidebar**: live title filter, relative ages, inline rename (Enter commits) and `#session=<id>`
+  deep links that survive reload plus back/forward navigation.
 - **Reasoning** from `-thinking` models renders in a collapsible block above the answer.
 - **Tool activity** appears as cards with arguments, output, duration and error state; the model's
   final answer arrives only after every tool round settles.
