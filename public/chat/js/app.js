@@ -1,6 +1,7 @@
 /* Proxy Console — application wiring: sessions, models, tools, streaming and turn actions. */
 
 import {deleteJson, getJson, renameSession, rewindSession, streamChat} from "./api.js";
+import {downloadText, sessionToMarkdown, slugify} from "./export.js";
 import {createPalette} from "./palette.js";
 import {el, sessionItem} from "./render.js";
 import {Thread} from "./thread.js";
@@ -57,6 +58,7 @@ const dom = {
     healthDot: $("health-dot"),
     healthText: $("health-text"),
     hints: $("hints"),
+    exportBtn: $("export-md"),
 };
 
 const thread = new Thread({container: dom.thread, emptyNode: dom.welcome});
@@ -129,6 +131,7 @@ async function refreshSessions() {
 }
 
 function renderSessions() {
+    dom.exportBtn.disabled = !state.sessionId;
     const needle = state.filter.trim().toLowerCase();
     const matches = needle
         ? state.sessions.filter((session) => (session.title ?? "").toLowerCase().includes(needle))
@@ -155,6 +158,20 @@ async function commitRename(id, title) {
         showToast("session renamed", "success");
     } catch (error) {
         showToast(`rename failed: ${error.message}`, "error");
+    }
+}
+
+/** Downloads the open conversation as Markdown, straight from the stored transcript. */
+async function exportSession() {
+    if (!state.sessionId) return;
+
+    try {
+        const data = await getJson(`/chat/api/sessions/${state.sessionId}`);
+        const session = data.session;
+        downloadText(`${slugify(session.title)}.md`, sessionToMarkdown(session));
+        showToast("markdown file ready", "success");
+    } catch (error) {
+        showToast(`export failed: ${error.message}`, "error");
     }
 }
 
@@ -508,6 +525,10 @@ function buildCommands() {
         {group: "tools", label: "Disable all tools", run: () => setAllTools(false)},
     );
 
+    if (state.sessionId) {
+        commands.push({group: "session", label: "Export this session (.md)", run: exportSession});
+    }
+
     if (state.running) {
         commands.push({group: "turn", label: "Stop the current run", run: stopRun});
     } else if (thread.lastAssistantView() && state.sessionId) {
@@ -562,6 +583,7 @@ function wireEvents() {
 
     dom.stop.addEventListener("click", () => state.controller?.abort());
     dom.newChat.addEventListener("click", startNewConversation);
+    dom.exportBtn.addEventListener("click", () => exportSession());
     dom.rewindCancel.addEventListener("click", () => {
         clearPendingRewind();
         dom.input.focus();

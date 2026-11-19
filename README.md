@@ -119,6 +119,8 @@ framework, no external CDN.
   Enter or `Ctrl+Enter` to send (`Shift+Enter` inserts a newline), transient toasts for every action.
 - **Command palette** on `Ctrl/Cmd+K`: jump to a session, switch model or reasoning effort, toggle
   panels and tools, regenerate the last answer or stop a run. `Alt+N` new chat, `Alt+T` tools, `Alt+S` system prompt.
+- **Export**: download the open conversation as Markdown — `.md` in the sidebar footer or the palette
+  command; reasoning notes plus every tool call and result are included.
 
 API used by the console (same-origin, no auth):
 

@@ -75,6 +75,11 @@ public/chat/js/api.js
   :: renameSession(id, title) · rewindSession(id, fromIndex)
   :: streamChat(payload, onEvent, signal)   POST + SSE frame parser (multi-line data: supported)
 
+public/chat/js/export.js
+  :: sessionToMarkdown(session)              transcript -> Markdown (header block, per-record sections, thought as quote, tool args/result fenced)
+  :: downloadText(filename, text)            Blob + object-URL download with deferred revoke
+  :: slugify(value)                          file-name safe slug (letters/digits/dashes, 60 chars max)
+
 public/chat/js/markdown.js
   :: escapeHtml(value) · renderMarkdown(source)   XSS-safe markdown (fenced blocks never parsed inline)
 
@@ -99,5 +104,6 @@ public/chat/js/toast.js
 public/chat/js/app.js
   :: init()                                 loads sessions/models/tools, opens the #session=<id> deep link, wires composer, drawers, shortcuts and prefs in localStorage ("proxy-console:prefs")
   :: renderSessions() · commitRename(id, title) · syncHash(id) · hashSessionId()   sidebar filter, inline rename, deep-link sync
+  :: exportSession()                         downloads the open session as a Markdown file
   :: sendMessage(text) · resendFrom(index, text) · regenerate() · beginRewindDraft(view)   edit/regenerate = rewind then re-send
   :: buildCommands()                        palette source: sessions, models, reasoning effort, panels, tool toggles, turn actions

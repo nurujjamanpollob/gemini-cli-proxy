@@ -67,11 +67,13 @@ export default tseslint.config(
             ecmaVersion: 2023,
             sourceType: "module",
             globals: {
+                Blob: "readonly",
                 AbortController: "readonly",
                 CustomEvent: "readonly",
                 Event: "readonly",
                 HTMLElement: "readonly",
                 TextDecoder: "readonly",
+                URL: "readonly",
                 URLSearchParams: "readonly",
                 clearTimeout: "readonly",
                 console: "readonly",

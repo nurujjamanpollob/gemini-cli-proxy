@@ -199,6 +199,8 @@ body {
 
 .sidebar-foot { border-top: 1px solid var(--line); padding-top: 12px; display: flex; flex-direction: column; gap: 8px; }
 .status-row { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 11px; color: var(--text-dim); }
+.export-btn { margin-left: auto; opacity: 0.75; letter-spacing: 0.06em; }
+.export-btn[disabled] { opacity: 0.3; cursor: not-allowed; }
 .credit { margin: 0; font-size: 11px; color: var(--text-faint); }
 .credit-name {
     background: linear-gradient(90deg, var(--accent), var(--accent-2));
