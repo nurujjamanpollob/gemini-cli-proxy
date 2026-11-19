@@ -115,6 +115,8 @@ framework, no external CDN.
   `tool_start`, `tool_end`, `message`, `usage`, `error`, `done`.
 - **Controls**: model picker (live catalogue), per-tool toggles, system prompt editor, Stop button,
   Enter or `Ctrl+Enter` to send (`Shift+Enter` inserts a newline), transient toasts for every action.
+- **Command palette** on `Ctrl/Cmd+K`: jump to a session, switch model or reasoning effort, toggle
+  panels and tools, regenerate the last answer or stop a run. `Alt+N` new chat, `Alt+T` tools, `Alt+S` system prompt.
 
 API used by the console (same-origin, no auth):
 

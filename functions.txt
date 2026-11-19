@@ -78,6 +78,9 @@ public/chat/js/api.js
 public/chat/js/markdown.js
   :: escapeHtml(value) · renderMarkdown(source)   XSS-safe markdown (fenced blocks never parsed inline)
 
+public/chat/js/palette.js
+  :: createPalette({getCommands, placeholder})   Ctrl/Cmd+K overlay: fuzzy-scored command list, arrow/enter/esc navigation, rebuilt on every open
+
 public/chat/js/render.js
   :: el(tag, props, children)               DOM builder
   :: MessageView                            one turn: reasoning block, markdown bubble, tool cards, usage; enableActions()/setRegenerateEnabled() drive the copy/edit/regenerate row
@@ -93,3 +96,4 @@ public/chat/js/toast.js
 public/chat/js/app.js
   :: init()                                 loads sessions/models/tools, wires composer, drawers, shortcuts and prefs in localStorage ("proxy-console:prefs")
   :: sendMessage(text) · resendFrom(index, text) · regenerate() · beginRewindDraft(view)   edit/regenerate = rewind then re-send
+  :: buildCommands()                        palette source: sessions, models, reasoning effort, panels, tool toggles, turn actions

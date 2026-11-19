@@ -1,9 +1,10 @@
 /* Proxy Console — application wiring: sessions, models, tools, streaming and turn actions. */
 
 import {deleteJson, getJson, rewindSession, streamChat} from "./api.js";
+import {createPalette} from "./palette.js";
 import {el, sessionItem} from "./render.js";
-import {showToast} from "./toast.js";
 import {Thread} from "./thread.js";
+import {showToast} from "./toast.js";
 
 const PREFS_KEY = "proxy-console:prefs";
 const HEALTH_POLL_MS = 30000;
@@ -55,6 +56,9 @@ const dom = {
 };
 
 const thread = new Thread({container: dom.thread, emptyNode: dom.welcome});
+
+/** Palette entries are rebuilt on every open so they always mirror live state. */
+const palette = createPalette({getCommands: buildCommands});
 
 /* ---------------- preferences ---------------- */
 
@@ -417,6 +421,61 @@ function closeAllDrawers() {
     }
 }
 
+function selectModel(model) {
+    if (![...dom.model.options].some((option) => option.value === model)) return;
+    dom.model.value = model;
+    savePrefs({model});
+}
+
+function setEffort(effort) {
+    dom.effort.value = effort;
+    savePrefs({reasoningEffort: effort});
+}
+
+function stopRun() {
+    state.controller?.abort();
+}
+
+/** Every palette entry: sessions, models, reasoning effort, panels, tool toggles, turn actions. */
+function buildCommands() {
+    const commands = [{group: "session", label: "New conversation", hint: "alt+n", run: startNewConversation}];
+
+    for (const session of state.sessions.slice(0, 24)) {
+        if (session.id === state.sessionId) continue;
+        commands.push({
+            group: "open",
+            label: session.title,
+            hint: `${session.messageCount ?? 0} msg`,
+            run: () => openSession(session.id),
+        });
+    }
+
+    for (const option of [...dom.model.options]) {
+        if (option.value === dom.model.value) continue;
+        commands.push({group: "model", label: option.value, hint: "switch", run: () => selectModel(option.value)});
+    }
+
+    for (const effort of ["low", "medium", "high"]) {
+        if (dom.effort.value === effort) continue;
+        commands.push({group: "model", label: `Reasoning effort: ${effort}`, run: () => setEffort(effort)});
+    }
+
+    commands.push(
+        {group: "panel", label: "Toggle MCP tools", hint: "alt+t", run: () => toggleDrawer(dom.toolsToggle, dom.toolsPanel)},
+        {group: "panel", label: "Toggle system prompt", hint: "alt+s", run: () => toggleDrawer(dom.systemToggle, dom.systemPanel)},
+        {group: "tools", label: "Enable all tools", run: () => setAllTools(true)},
+        {group: "tools", label: "Disable all tools", run: () => setAllTools(false)},
+    );
+
+    if (state.running) {
+        commands.push({group: "turn", label: "Stop the current run", run: stopRun});
+    } else if (thread.lastAssistantView() && state.sessionId) {
+        commands.push({group: "turn", label: "Regenerate the last answer", run: regenerate});
+    }
+
+    return commands;
+}
+
 async function submitComposer() {
     const value = dom.input.value.trim();
     if (!value || state.running) return;
@@ -479,6 +538,25 @@ function wireEvents() {
     });
 
     document.addEventListener("keydown", (event) => {
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+            event.preventDefault();
+            palette.toggle();
+            return;
+        }
+
+        if (event.altKey && !event.ctrlKey && !event.metaKey) {
+            const actions = {
+                n: startNewConversation,
+                t: () => toggleDrawer(dom.toolsToggle, dom.toolsPanel),
+                s: () => toggleDrawer(dom.systemToggle, dom.systemPanel),
+            };
+            const action = actions[event.key.toLowerCase()];
+            if (!action) return;
+            event.preventDefault();
+            action();
+            return;
+        }
+
         if (event.key !== "Escape") return;
         if (state.pendingRewind !== null) clearPendingRewind();
         closeAllDrawers();
